@@ -1,0 +1,73 @@
+﻿<Window x:Class="zxCalculator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:zxCalculator"
+        mc:Ignorable="d"
+        Title="Custom Function Calculator" Height="420" Width="600" Background="#FF2B2B2B" WindowStartupLocation="CenterScreen"
+        MinHeight="420" MinWidth="600" SnapsToDevicePixels="True">
+
+    <Grid x:Name="mainGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="21*"/>
+            <RowDefinition Height="10*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="167*"/>
+            <ColumnDefinition Width="130*"/>
+        </Grid.ColumnDefinitions>
+        <GroupBox x:Name="grpboxFunctions" Grid.Column="1" Header="Functions" Margin="5,0,5,10" Foreground="#FF767676" BorderBrush="#FF767676" d:LayoutOverrides="LeftMargin, RightMargin, TopMargin, BottomMargin" SnapsToDevicePixels="True" Padding="0,2,0,0">
+            <ScrollViewer x:Name="scrollFunctions" VerticalScrollBarVisibility="Auto" Style="{DynamicResource SimpleScrollViewer}" CanContentScroll="True">
+                <StackPanel x:Name="stackFunctions">
+                    <Button x:Name="bttAddFunction" Content="Add Function" VerticalAlignment="Top" Height="25" Margin="0,0,0,2"
+                            Click="ONclick_bttAddFunction"/>
+                    <!--DockPanel x:Name="dockDynFunction" Height="25" LastChildFill="True">
+                        <Button x:Name="bttStroke" Content="@" Margin="0,0,2,0" Width="25"
+                                DockPanel.Dock="Left"/>
+                        <Button x:Name="bttRemove" Content="r" Margin="2,0,0,0" Width="25"
+                                DockPanel.Dock="Right" VerticalContentAlignment="Center" FontFamily="Marlett" FontSize="14" Padding="1"/>
+                        <Button x:Name="bttCalcFunction" Content="sinh+" Margin="2,0,0,0"
+                                DockPanel.Dock="Right" FontFamily="Cambria Math" Padding="3,1" Width="54"/>
+                        <TextBox x:Name="txtboxOutput" 
+                                 TextWrapping="NoWrap" Text="1 000 075.018" 
+                                 Background="#FF202020" Foreground="#FFB4B4B4" BorderBrush="Black" VerticalContentAlignment="Bottom" HorizontalContentAlignment="Right" FontFamily="Cambria Math" FontSize="16" IsReadOnly="True" Style="{DynamicResource TextBoxStyle_DigiOut}"/>
+                    </-->
+                </StackPanel>
+            </ScrollViewer>
+        </GroupBox>
+        <GroupBox x:Name="grpboxArgs" Grid.ColumnSpan="2" Header="Arguments" Margin="5,-10,4.6,5" BorderBrush="#FF767676" Foreground="#FF767676" Grid.Row="1">
+            <ScrollViewer x:Name="scrollArguments" VerticalScrollBarVisibility="Auto" Style="{DynamicResource SimpleScrollViewer}" Margin="0,0,0,-1.986" CanContentScroll="True">
+                <StackPanel x:Name="stackArguments">
+                    <!--DockPanel x:Name="dockArguments" Height="25" LastChildFill="True" Margin="0,2,0,0">
+                        <Label x:Name="labelboxArgLabel"
+                                Background="#FF323232" Foreground="#FFB4B4B4" BorderBrush="{x:Null}" FontFamily="Cambria Math" BorderThickness="1"
+                                DockPanel.Dock="Left" Width="50" HorizontalContentAlignment="Center" Content="x, m:" VerticalContentAlignment="Bottom" Padding="1,1,1,5"/>
+                        <Button x:Name="bttArgRangeTgg" Content="Range" Margin="2,0,0,0"
+                                DockPanel.Dock="Right" FontFamily="Cambria Math" Padding="3,1" Width="54"/>
+                        <TextBox x:Name="txtboxInput" 
+                                TextWrapping="NoWrap" Text="25.125402" 
+                                Background="#FF202020" Foreground="#FFB4B4B4" BorderBrush="{x:Null}" VerticalContentAlignment="Bottom" HorizontalContentAlignment="Right" FontFamily="Cambria Math" FontSize="16" Style="{DynamicResource TextBoxStyle_ArgInput}" BorderThickness="1" IsUndoEnabled="False"
+                                LostKeyboardFocus="LostKeyFocus_TESTargInput" KeyDown="KeyDown_TESTargInput"/>
+                    </-->
+                    <DockPanel Height="25" Margin="0,2,0,0" LastChildFill="True">
+                        <Button x:Name="bttRemoveArgument" Click="bttRemoveArgument_Click" Content="r" Margin="1,0,56,0" BorderThickness="1" Grid.Column="1"
+                                DockPanel.Dock="Right" HorizontalAlignment="Right" Width="25" FontFamily="Marlett" FontSize="14"/>
+                        <Button x:Name="bttAddArgument" Click="bttAddArgument_Click"  Content="Add Argument" Margin="50,0,1,0" BorderThickness="1" Grid.Column="0"/>
+                    </DockPanel>
+
+                </StackPanel>
+            </ScrollViewer>
+        </GroupBox>
+        <Canvas Margin="5,10,0,10" d:LayoutOverrides="LeftMargin, RightMargin, TopMargin, BottomMargin">
+            <Canvas.Background>
+                <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                    <GradientStop Color="#FF252525" Offset="1"/>
+                    <GradientStop Color="#FF969696"/>
+                </LinearGradientBrush>
+            </Canvas.Background>
+        </Canvas>
+
+    </Grid>
+
+</Window>
