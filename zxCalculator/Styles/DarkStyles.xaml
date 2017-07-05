@@ -12,7 +12,7 @@
 
     <Style TargetType="{x:Type GroupBox}">
         <Setter Property="BorderBrush" Value="#D5DFE5"/>
-        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderThickness" Value="0.5"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type GroupBox}">
@@ -47,8 +47,42 @@
             </Setter.Value>
         </Setter>
     </Style>
-    
-    
+
+    <!--GROUP_BOX STYLE-->
+    <Style x:Key="FlatGroupBox" TargetType="{x:Type GroupBox}">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type GroupBox}">
+            <Grid SnapsToDevicePixels="True">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="33*"/>
+              </Grid.RowDefinitions>
+              <Rectangle x:Name="BorderRect" RadiusY="2" RadiusX="2" Grid.Row="0" Grid.RowSpan="2" Fill="Transparent"
+                         Stroke="{TemplateBinding BorderBrush}"
+                         StrokeThickness="{TemplateBinding BorderThickness}"/>
+              <Rectangle x:Name="HeaderRect" Grid.Row="0" Fill="{TemplateBinding BorderBrush}">
+                <Rectangle.RadiusY>
+                  <Binding ElementName="BorderRect" Path="RadiusY"/>
+                </Rectangle.RadiusY>
+                <Rectangle.RadiusX>
+                  <Binding ElementName="BorderRect" Path="RadiusX"/>
+                </Rectangle.RadiusX>
+              </Rectangle>
+              <UniformGrid Rows="2" Columns="1">
+                <Rectangle x:Name="emptyRect"/>
+                <Rectangle x:Name="innerRect" Margin="0,0,0,-2"
+                           Fill="{TemplateBinding BorderBrush}"/>
+              </UniformGrid>
+              <ContentPresenter ContentSource="Header" HorizontalAlignment="Left" Grid.Row="0" Margin="5,0,0,0"/>
+              <ContentPresenter Grid.Row="1"
+                                Margin="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     
     
     <!--BUTTON TEMPLATE-->
@@ -164,7 +198,7 @@
                             <ScrollViewer Margin="0" x:Name="PART_ContentHost" Style="{DynamicResource SimpleScrollViewer}" Background="{TemplateBinding Background}"/>
 
                         </Border>
-                        <Rectangle x:Name="progressBar" Fill="#00009FFF" Margin="1,1,50,1" />
+                        <Rectangle x:Name="progressBar" Margin="1"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsEnabled" Value="False">

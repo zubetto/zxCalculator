@@ -34,11 +34,12 @@ namespace zxCalculator
             dlgOpenFile.Filter = "Application extension (.dll)|*.dll";
 
             string[] files = null;
-            string errors = ""; // nothing was opened or number of suitable types exceeds max number of available function slots
+            string errors = ""; // errors during loading of dlls; or number of suitable types exceeds max number of available function slots
 
             int indexAdd = 0;
             int indexErr = 0;
             bool loadFlag = false;
+            bool fullFlag = false;
             bool dlgResult = false;
 
             ICalculate[] functionsData = new ICalculate[AppStuff.FunctionsNumber];
@@ -70,8 +71,12 @@ namespace zxCalculator
                         foreach (Type tp in types)
                         {
                             if (indexAdd >= AppStuff.FunctionsNumber)
+                            {
                                 errors += "Perhaps, not all functions have been loaded due to absence of free slots!";
-
+                                fullFlag = true;
+                                break;
+                            }
+                               
                             if (tp.GetInterface("zxCalculator.ICalculate") != null)
                             {
                                 functionsData[indexAdd] = calcDLL.CreateInstance(tp.FullName) as ICalculate;
@@ -84,16 +89,18 @@ namespace zxCalculator
                             }
                         } // --- end of types loop ---------
 
+                        if (fullFlag) break;
+
                         if (!loadFlag)
                         {
-                            errors += String.Format("{0}. {1}: The ICalculate NOT FOUND/n/n/r", indexErr++, System.IO.Path.GetFileName(files[i]) );
+                            errors += String.Format("{0}. {1}: The ICalculate NOT FOUND\n\n\r", indexErr++, System.IO.Path.GetFileName(files[i]) );
                         }
                     } // --- end of files loop -------------------------------------------------------------------
                 }
             }
             catch (Exception exc)
             {
-                errors = String.Format("{0}/n/n/r{1}", exc.ToString(), errors);
+                errors = String.Format("{0}\n\n\r{1}", exc.ToString(), errors);
             }
 
             if (indexAdd > 0)
@@ -111,25 +118,6 @@ namespace zxCalculator
                 MessageBox.Show("Unexpected error!", "Issues during loading", MessageBoxButton.OK, MessageBoxImage.Exclamation);
             }
             
-            e.Handled = true;
-        }
-
-        private void LostKeyFocus_TESTargInput(object sender, RoutedEventArgs e)
-        {
-            TextBox txtboxArgs = e.Source as TextBox;
-            if (txtboxArgs == null) txtboxArgs = AppStuff.testBoxArgs;
-
-            double Arg = 0;
-
-            if (Double.TryParse(txtboxArgs.Text, out Arg))
-            {
-                AppStuff.testBoxFunc.Text = String.Format("{0}", Arg);
-            }
-            else
-            {
-                AppStuff.testBoxFunc.Text = "0";
-            }
-
             e.Handled = true;
         }
         

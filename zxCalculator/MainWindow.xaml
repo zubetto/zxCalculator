@@ -5,17 +5,23 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:zxCalculator"
         mc:Ignorable="d"
-        Title="Custom Function Calculator" Height="420" Width="600" Background="#FF2B2B2B" WindowStartupLocation="CenterScreen"
-        MinHeight="420" MinWidth="600" SnapsToDevicePixels="True">
+        Title="Custom Function Calculator" Height="525" Width="840" WindowStartupLocation="CenterScreen"
+        MinHeight="525" MinWidth="840" SnapsToDevicePixels="True">
+    <Window.Background>
+        <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+            <GradientStop Color="#FF323335" Offset="0"/>
+            <GradientStop Color="#FF151618" Offset="0.6"/>
+        </LinearGradientBrush>
+    </Window.Background>
 
     <Grid x:Name="mainGrid">
         <Grid.RowDefinitions>
-            <RowDefinition Height="21*"/>
-            <RowDefinition Height="10*"/>
+            <RowDefinition Height="215*" MinHeight="334"/>
+            <RowDefinition Height="100*" MinHeight="155"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="167*"/>
-            <ColumnDefinition Width="130*"/>
+            <ColumnDefinition Width="167*" MinWidth="464"/>
+            <ColumnDefinition Width="130*" MinWidth="362"/>
         </Grid.ColumnDefinitions>
         <GroupBox x:Name="grpboxFunctions" Grid.Column="1" Header="Functions" Margin="5,0,5,10" Foreground="#FF767676" BorderBrush="#FF767676" d:LayoutOverrides="LeftMargin, RightMargin, TopMargin, BottomMargin" SnapsToDevicePixels="True" Padding="0,2,0,0">
             <ScrollViewer x:Name="scrollFunctions" VerticalScrollBarVisibility="Auto" Style="{DynamicResource SimpleScrollViewer}" CanContentScroll="True">
@@ -59,14 +65,20 @@
                 </StackPanel>
             </ScrollViewer>
         </GroupBox>
-        <Canvas Margin="5,10,0,10" d:LayoutOverrides="LeftMargin, RightMargin, TopMargin, BottomMargin">
-            <Canvas.Background>
-                <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
-                    <GradientStop Color="#FF252525" Offset="1"/>
-                    <GradientStop Color="#FF969696"/>
-                </LinearGradientBrush>
-            </Canvas.Background>
-        </Canvas>
+        <Border Margin="5,8.15,0,11.15" Padding="0,0,0,35">
+            <Canvas x:Name="MainCanvas" ClipToBounds="True">
+                <Canvas.Background>
+                    <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                        <GradientStop Color="#FF2E2E2E" Offset="1"/>
+                        <GradientStop Color="#FF222225"/>
+                    </LinearGradientBrush>
+                </Canvas.Background>
+            </Canvas>
+        </Border>
+        <GridSplitter x:Name="gridSplitterVertical" HorizontalAlignment="Left" Width="5" Grid.Column="1"
+                      ResizeBehavior="PreviousAndCurrent" ShowsPreview="True" Margin="0,8,0,11" Background="White" Opacity="0" DragIncrement="2"/>
+        <GridSplitter x:Name="gridSplitterHorizontal" HorizontalAlignment="Stretch" Height="5" VerticalAlignment="Bottom" Grid.ColumnSpan="2" Margin="8,0" Opacity="0"
+                      ResizeBehavior="CurrentAndNext" ShowsPreview="True" DragIncrement="2"/>
 
     </Grid>
 
