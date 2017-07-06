@@ -78,8 +78,8 @@ namespace FourierSeries
             // { "t", "Tp", "Tw", "A", "n" };
             // {  0,   1,    2,    3,   4  };
 
-            if (args[1] < 1e-64 * double.Epsilon) args[1] = 1e-64 * double.Epsilon;
-            if (args[2] < 1e-24 * args[1]) args[2] = 1e-24 * args[1];
+            if (args[1] < 1e-100) args[1] = 1e-100;
+            if (args[2] < 1e-30 * args[1]) args[2] = 1e-30 * args[1];
             if (args[1] < args[2]) args[2] = args[1];
             if (args[3] < 0) args[3] = -args[3];
             if (args[4] < 0) args[4] = -args[4];
@@ -95,7 +95,7 @@ namespace FourierSeries
 
             int FSnum = (int)Math.Round(args[4]);
 
-            if (args[1] - args[2] > double.Epsilon)
+            if (args[1] - args[2] > 1e-131)
             {
                 // Fourier Series Sum
                 for (int i = 1; i <= FSnum; i++)
