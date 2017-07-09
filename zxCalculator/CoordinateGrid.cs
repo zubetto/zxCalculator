@@ -15,11 +15,258 @@ using System.Windows.Controls.Primitives;
 namespace zxCalculator
 {
     /// <summary>
-    /// (x,y) is used for the real grid coordinates
-    /// (u,v) is used for the WPF canvas coordinates
+    /// Wrapping class for the simple filtering method that
+    /// maintains the number of points for output geometry within specified limit
+    /// and also performs transition of those points from x,y to u,v space;
+    /// x,y is used for the space in which calculations are performed
+    /// u,v is used for the output canvas space
+    /// </summary>
+    public class PointsSampler : CoordinateGrid.IPointsFilter
+    {
+        // OUTPUT
+        private PathGeometry outputGeometry;
+        private Point[] outputPoints;
+        private bool outputIsSetted = false;
+        
+        private Canvas outputCanvas; // The canvas and transform matrix are used to define current field of view
+        private MatrixTransform MxTransformXYtoUV; // Contains transition matrix from the x,y space to the u,v space
+
+        // INPUT
+        private double[][] inputYArr;
+        private AnalysisData[] inputInfo;
+        private double[] XRange; // [0] - limA, [1] - limB, [2] - step
+        private bool inputIsSetted = false;
+        
+        // SimpleSampler params
+        private int PointsMaxNum = 1000; // maximum number of points that could be outputted
+        public int PointsNumber
+        {
+            get { return PointsMaxNum; }
+            set
+            {
+                if (value > 0 && outputGeometry != null)
+                {
+                    outputPoints = new Point[value];
+
+                    PolyLineSegment plSeg = outputGeometry.Figures[0].Segments[0] as PolyLineSegment;
+                    plSeg.Points = new PointCollection(outputPoints);
+                }
+            }
+        }
+
+        public PointsSampler(double[] range, int maxPoints = 2000)
+        {
+            if (maxPoints > 0) PointsMaxNum = maxPoints;
+
+            outputPoints = new Point[PointsMaxNum];
+
+            XRange = range;
+        }
+        
+        public void SetOutput(Canvas canvas, Geometry outGeom)
+        {
+            outputCanvas = canvas;
+            outputGeometry = outGeom as PathGeometry;
+            MxTransformXYtoUV = outputGeometry.Transform as MatrixTransform; // Obtainig reference to the XYtoUV transition matrix
+            outputGeometry.Transform = new MatrixTransform(Matrix.Identity); // Points will be added already transformed, therefore WPF transform is not used
+            
+            PolyLineSegment plSeg = new PolyLineSegment(outputPoints, true);
+            PathFigure pFigure = new PathFigure(new Point(), new PolyLineSegment[1] { plSeg }, false);
+            outputGeometry.Figures = new PathFigureCollection(new PathFigure[1] { pFigure });
+
+            pFigure.IsFilled = false;
+
+            outputIsSetted = true;
+        }
+
+        public void ResetInputFlag() { inputIsSetted = false; }
+
+        public void SetInput(double[][] Yarr, AnalysisData[] info)
+        {
+            inputYArr = Yarr;
+            inputInfo = info;
+
+            inputIsSetted = true;
+        }
+
+        public Point[] Filter()
+        {
+            try
+            {
+                if (!(inputIsSetted && outputIsSetted)) return null; // >>>>>>> To prevent race condition >>>>>>>
+
+                Matrix Mx = MxTransformXYtoUV.Matrix;
+
+                // u = x * ratioXtoU + offsetU;     
+                // v = y * ratioYtoV + offsetV; 
+                // x = (u - offsetU) / ratioXtoU;
+                // y = (v - offsetV) / ratioYtoV;
+                double viewLimA = -Mx.OffsetX / Mx.M11;
+                double viewLimB = (outputCanvas.ActualWidth - Mx.OffsetX) / Mx.M11;
+
+                // [0] - limA, [1] - limB, [2] - step
+                double XlimA = XRange[0];
+                double XlimB = XRange[1];
+                double Xstep = XRange[2];
+
+                PolyLineSegment plSegment = outputGeometry.Figures[0].Segments[0] as PolyLineSegment;
+
+                if (viewLimA >= XlimB || viewLimB <= XlimA) // Entire graph is out-of-sight
+                {
+                    plSegment.IsStroked = false;
+                    return null; // >>>>> >>>>>
+                }
+                else // Searching for completed segments in the field of view
+                {
+                    plSegment.IsStroked = true;
+
+                    int SegNum = inputYArr.Length;
+                    int firstViewInd = -1;
+                    int lastViewInd = -1;
+
+                    // Searching for first completed segment in the field of view
+                    for (int i = 0; i < SegNum; i++)
+                    {
+                        if (inputInfo[i].IsComplete && inputInfo[i].SegmentLimB > viewLimA)
+                        {
+                            firstViewInd = i;
+                            break;
+                        }
+                    }
+
+                    if (firstViewInd < 0) // Neither segment is completed
+                    {
+                        plSegment.IsStroked = false;
+                        return null; // >>>>> >>>>>
+                    }
+
+                    // Searching for last completed segment in the field of view 
+                    for (int i = SegNum - 1; i >= 0; i--)
+                    {
+                        if (inputInfo[i].IsComplete && inputInfo[i].SegmentLimA < viewLimB)
+                        {
+                            lastViewInd = i;
+                            break;
+                        }
+                    }
+
+                    if (lastViewInd < firstViewInd) // All completed segments are out-of-sight
+                    {
+                        plSegment.IsStroked = false;
+                        return null; // >>>>> >>>>>
+                    }
+
+                    // Defining number of all points in the field of view
+                    double dA = viewLimA - inputInfo[firstViewInd].SegmentLimA;
+                    double dB = inputInfo[lastViewInd].SegmentLimB - viewLimB;
+
+                    int indA = 0;
+                    int indB = inputInfo[lastViewInd].SegmentLength - 1;
+
+                    if (dA > Xstep) indA = (int)Math.Floor(dA / Xstep);
+                    if (dB > Xstep) indB -= (int)Math.Floor(dB / Xstep);
+
+                    // Reducing the number of output points by using index increment
+                    int incr = indB - indA + 1; // Is equal to ratio of number of all points in the field of view and the PointsMaxNum
+
+                    // Adding length of each completed segment located between the first and the last
+                    if (firstViewInd < lastViewInd)
+                    {
+                        incr += inputInfo[firstViewInd].SegmentLength;
+
+                        for (int i = firstViewInd + 1; i < lastViewInd; i++)
+                        {
+                            if (inputInfo[i].IsComplete) incr += inputInfo[i].SegmentLength;
+                        }
+                    }
+
+                    //incr /= PointsMaxNum;
+                    incr = (int)Math.Ceiling(1.0 * incr / PointsMaxNum);
+                    if (incr == 0) incr = 1;
+
+                    // Init variables for the segments iteration
+                    int SegLen;
+                    int ptInd = 0;
+                    double Xspan = incr * Xstep;
+                    double X = inputInfo[firstViewInd].SegmentLimA + indA * Xstep;
+                    double[] Segment;
+                    double ku = Mx.M11, kv = Mx.M22;
+                    double du = Mx.OffsetX, dv = Mx.OffsetY;
+
+                    // *** Outputting of the points ***
+                    for (int i = firstViewInd; i <= lastViewInd; i++) // segments loop
+                    {
+                        if (inputInfo[i].IsComplete)
+                        {
+                            Segment = inputYArr[i];
+                            SegLen = Segment.Length;
+
+                            while (indA < SegLen) // points loop
+                            {
+                                outputPoints[ptInd].X = ku * X + du;
+                                outputPoints[ptInd].Y = kv * Segment[indA] + dv;
+
+                                if (++ptInd == PointsMaxNum)
+                                {
+                                    plSegment.Points = new PointCollection(outputPoints);
+                                    outputGeometry.Figures[0].StartPoint = outputPoints[0];
+                                    return outputPoints; // >>>>> COMPLETED >>>>>
+                                }
+
+                                indA += incr;
+                                X += Xspan;
+                            }
+
+                            indA -= SegLen;
+                        }
+                        else
+                        {
+                            indA = 0;
+                        }
+                    } // end of segments loop
+
+                    // Finalize
+                    Xspan = outputPoints[ptInd - 1].Y; // just fill out remainig points
+                    X = ku * X + du;
+
+                    while (ptInd < PointsMaxNum)
+                    {
+                        outputPoints[ptInd].X = X;
+                        outputPoints[ptInd].Y = Xspan;
+                        ptInd++;
+                    }
+
+                    plSegment.Points = new PointCollection(outputPoints);
+                    outputGeometry.Figures[0].StartPoint = outputPoints[0];
+                }
+
+                return outputPoints;
+            }
+            catch (Exception e)
+            {
+                string es = e.ToString();
+                return null;
+            }
+
+            
+        }
+        
+    } // end of public class PointsSampler ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// <summary>
+    /// (x,y) is used for the space in which calculations are performed, i.e. grid coordinates
+    /// (u,v) is used for the WPF output canvas space, i.e. canvas coordinates
     /// </summary>
     public class CoordinateGrid
     {
+        public delegate Point[] Filtering();
+
+        public interface IPointsFilter
+        {
+            void SetOutput(Canvas outCanvas, Geometry outGeom);
+            Point[] Filter();
+        }
+
         private MainWindow windowMain;
         private Canvas outputCanvas;
 
@@ -75,10 +322,12 @@ namespace zxCalculator
         private double GaugeY;
         private double labelLeft, labelRight, labelTop, labelBottom;
 
-        // Graphs
+        // Graphs and filters
         private SWShapes.Path[] GraphPaths;
         public SWShapes.Path[] FunctionGraphs { get { return GraphPaths; } }
+        private Filtering[] OutFilters;
 
+        // Grid frame, lines, labels
         private SWShapes.Path UgridLines = new SWShapes.Path();
         private SWShapes.Path VgridLines = new SWShapes.Path();
         private PathGeometry UgridLinesGeometry;
@@ -150,9 +399,10 @@ namespace zxCalculator
             windowMain = mainwin;
             outputCanvas = canvas;
             outputCanvas.Cursor = Cursors.Cross;
-
+            
             // --- graphs num ----------------------------------
             GraphPaths = new SWShapes.Path[slots];
+            OutFilters = new Filtering[slots];
             BoundsArr = new Rect[slots];
 
             for (int i = 0; i < slots; i++) BoundsArr[i] = Rect.Empty;
@@ -271,33 +521,63 @@ namespace zxCalculator
             zoomFactor = Math.Pow(zoomBase, 1.0 / zoomDetents);
         }
 
+        public void AddFilter(int index, IPointsFilter filterData)
+        {
+            if (GraphPaths[index] != null)
+            {
+                OutFilters[index] = filterData.Filter;
+                filterData.SetOutput(outputCanvas, GraphPaths[index].Data);
+            }
+        }
+
+        public void RemoveFilter(int index)
+        {
+            OutFilters[index] = null;
+            RemoveGraph(index);
+        }
+        
+        public void AddGraph(int index, IPointsFilter outFilter)
+        {
+            if (GraphPaths[index] == null)
+            {
+                GraphPaths[index] = new SWShapes.Path();
+                GraphPaths[index].Data = new PathGeometry();
+                GraphPaths[index].Data.Transform = GraphMxTr;
+                SetGraph(index); // brushes, thickness, stroke
+
+                outputCanvas.Children.Add(GraphPaths[index]);
+            }
+
+            AddFilter(index, outFilter);
+        }
+
         public void AddGraph(int index, int segmentsNum, Rect Bounds, Point[][] SegmentsPoints = null)
         {
-            if (BoundsAdded == GraphPaths.GetLength(0)) return; // >>>>> GraphPaths is already full >>>>>
+            if (BoundsAdded == GraphPaths.Length) return; // >>>>> GraphPaths is already full >>>>>
             
             SWShapes.Path newGraph;
             PathGeometry pGeom;
             PathFigure pFigure;
             PathSegment[] Segments;
 
-            if (GraphPaths[index] == null)
+            if (GraphPaths[index] == null) // then add a new
             {
                 newGraph = new SWShapes.Path();
                 GraphPaths[index] = newGraph;
-                SetGraph(index);
+                SetGraph(index); // brushes, thickness, stroke
 
                 pGeom = new PathGeometry();
                 pFigure = new PathFigure();
 
                 newGraph.Data = pGeom;
-                pGeom.Transform = GraphMxTr;
+                pGeom.Transform = GraphMxTr; // transform matrix
                 pFigure.IsFilled = false;
                 pGeom.Figures = new PathFigureCollection(1);
                 pGeom.Figures.Add(pFigure);
 
                 outputCanvas.Children.Add(newGraph);
             }
-            else
+            else // Update graph
             {
                 newGraph = GraphPaths[index];
                 pGeom = newGraph.Data as PathGeometry;
@@ -320,7 +600,7 @@ namespace zxCalculator
             }
             else // --- plot a function graph by given points --------------------------------------------
             {
-                segmentsNum = SegmentsPoints.GetLength(0);
+                segmentsNum = SegmentsPoints.Length;
                 Segments = new PathSegment[segmentsNum];
 
                 for (int i = 0; i < segmentsNum; i++)
@@ -341,10 +621,13 @@ namespace zxCalculator
 
         public void AddSegment(int indGraph, int indSegment, Rect Bounds, Point[] pointsArr)
         {
-            if (GraphPaths[indGraph] == null) return; // >>>>> >>>>>
+            if (GraphPaths[indGraph] == null || OutFilters[indGraph] != null) return; // >>>>> null or maintained by a filter >>>>>
 
             PathGeometry pGeom = GraphPaths[indGraph].Data as PathGeometry;
             PathSegmentCollection pSegs = pGeom.Figures[0].Segments;
+            LineSegment LSeg = pSegs[indSegment] as LineSegment;
+
+            if (LSeg == null) return; // >>>>> GraphPaths[indGraph] was initialized by points array rather than segments number >>>>>
 
             pSegs[indSegment] = new PolyLineSegment(pointsArr, true);
 
@@ -355,15 +638,27 @@ namespace zxCalculator
             }
             else if (!pSegs[--indSegment].IsStroked)
             {
-                LineSegment LSeg = pSegs[indSegment] as LineSegment; // the AddGraph method initializes path with invisible LineSegments
+                LSeg = pSegs[indSegment] as LineSegment; // the AddGraph method initializes path with invisible LineSegments
                 LSeg.Point = pointsArr[0];
             }
 
             if (Bounds.IsEmpty) Bounds = DefineBounds(new Point[1][] { pointsArr });
-
+            
             AddBounds(indGraph, Bounds);
 
             if (AutoFit) FitIn();
+        }
+
+        public void AddSegment(int indGraph, Rect Bounds, bool first = false)
+        {
+            if (GraphPaths[indGraph] == null || OutFilters[indGraph] == null) return; // >>>>> null or is not maintained by a filter >>>>>
+
+            if (first) RemoveBounds(indGraph);
+
+            if (!Bounds.IsEmpty) AddBounds(indGraph, Bounds);
+
+            if (AutoFit) FitIn();
+            else OutFilters[indGraph]();
         }
 
         public void HideGraph(int index)
@@ -577,6 +872,7 @@ namespace zxCalculator
                 GraphMatrix.OffsetX = OffsetU;
                 GraphMatrix.OffsetY = OffsetV;
                 GraphMxTr.Matrix = GraphMatrix;
+                foreach (Filtering F in OutFilters) F?.Invoke();
 
                 UgridMatrix.OffsetX += du;
                 VgridMatrix.OffsetY += dv;
@@ -594,7 +890,7 @@ namespace zxCalculator
 
                 if (shiftNum != 0)
                 {
-                    int pendex = UlabelsArr.GetLength(0) - 1;
+                    int pendex = UlabelsArr.Length - 1;
 
                     labelLeft -= GaugeX * shiftNum;
                     labelRight = labelLeft;
@@ -613,7 +909,7 @@ namespace zxCalculator
 
                 if (shiftNum != 0)
                 {
-                    int pendex = VlabelsArr.GetLength(0) - 1;
+                    int pendex = VlabelsArr.Length - 1;
 
                     labelTop += GaugeY * shiftNum;
                     labelBottom = labelTop;
@@ -724,8 +1020,8 @@ namespace zxCalculator
             if (step > 0) // zooming in --------------------------------------------------------
             {
                 double zoomUmax, zoomVmax, zoomTop;
-                int endX = XstepFactors.GetLength(0) - 1;
-                int endY = YstepFactors.GetLength(0) - 1;
+                int endX = XstepFactors.Length - 1;
+                int endY = YstepFactors.Length - 1;
 
                 while (IsExceed) // zoom-in loop
                 {
@@ -793,8 +1089,8 @@ namespace zxCalculator
             else if (step < 0) // zooming out -------------------------------------------------------
             {
                 double zoomUmin, zoomVmin, zoomLow;
-                int endX = XstepFactors.GetLength(0) - 1;
-                int endY = YstepFactors.GetLength(0) - 1;
+                int endX = XstepFactors.Length - 1;
+                int endY = YstepFactors.Length - 1;
 
                 while (IsExceed) // zoom-out loop
                 {
@@ -871,6 +1167,7 @@ namespace zxCalculator
             GraphMatrix.OffsetX = OffsetU;
             GraphMatrix.OffsetY = OffsetV;
             GraphMxTr.Matrix = GraphMatrix;
+            foreach (Filtering F in OutFilters) F?.Invoke();
 
             if (NewUgrid) // create new grid layout of the U-lines
             {
@@ -1245,90 +1542,7 @@ namespace zxCalculator
 
             } // end of if (BoundsAdded > 0)
         }
-
-        private void SetBoundsRDNT(Rect Bounds, bool addition = true)
-        {
-            if (addition)
-            {
-                if (BoundsAdded == 0) // then set initial bounds
-                {
-                    BoundsAdded++;
-
-                    bool hasW = Bounds.Width > double.Epsilon;
-                    bool hasH = Bounds.Height > double.Epsilon;
-
-                    if (hasW && hasH)
-                    {
-                        BoundsXmin = Bounds.Left;
-                        BoundsXmax = Bounds.Right;
-                        BoundsYmin = Bounds.Top; // Y-axis inversion, as in System.Windows.Rect:
-                        BoundsYmax = Bounds.Bottom; // Bottom = Top + Height
-                    }
-                    else if (hasW && !hasH)
-                    {
-                        BoundsXmin = Bounds.Left;
-                        BoundsXmax = Bounds.Right;
-                        BoundsYmin = Bounds.Y - 0.5 * Bounds.Width;
-                        BoundsYmax = Bounds.Y + 0.5 * Bounds.Width;
-                    }
-                    else if (!hasW && hasH)
-                    {
-                        BoundsXmin = Bounds.X - 0.5 * Bounds.Height;
-                        BoundsXmax = Bounds.X + 0.5 * Bounds.Height;
-                        BoundsYmin = Bounds.Top; // Y-axis inversion, as in System.Windows.Rect:
-                        BoundsYmax = Bounds.Bottom; // Bottom = Top + Height
-                    }
-                    else // (!hasW && !hasH)
-                    {
-                        BoundsXmin = 0;
-                        BoundsXmax = 2 * Bounds.X;
-                        BoundsYmin = 0;
-                        BoundsYmax = 2 * Bounds.Y;
-                    }
-                }
-                else // expand bounds as necessary
-                {
-                    if (Bounds.Left < BoundsXmin) BoundsXmin = Bounds.Left;
-                    if (Bounds.Right > BoundsXmax) BoundsXmax = Bounds.Right;
-
-                    // keeping in mind that Bottom = Top + Height
-                    if (Bounds.Top < BoundsYmin) BoundsYmin = Bounds.Top;
-                    if (Bounds.Bottom > BoundsYmax) BoundsYmax = Bounds.Bottom;
-                }
-            }
-            else if (BoundsAdded > 1) // shrinking;
-            {
-                BoundsAdded--;
-
-                bool iniFlag = true;
-
-                foreach (Rect bound in BoundsArr)
-                {
-                    if (!bound.IsEmpty)
-                    {
-                        if (iniFlag)
-                        {
-                            BoundsXmin = bound.Left;
-                            BoundsXmax = bound.Right;
-                            BoundsYmin = bound.Top; // Y-axis inversion, as in System.Windows.Rect:
-                            BoundsYmax = bound.Bottom; // Bottom = Top + Height
-
-                            iniFlag = false;
-                        }
-                        else
-                        {
-                            if (bound.Left < BoundsXmin) BoundsXmin = bound.Left;
-                            else if (bound.Right > BoundsXmax) BoundsXmax = bound.Right;
-
-                            // keeping in mind that Bottom = Top + Height
-                            if (bound.Top < BoundsYmin) BoundsYmin = bound.Top;
-                            else if (bound.Bottom > BoundsYmax) BoundsYmax = bound.Bottom;
-                        }
-                    }
-                } // end of foreach (Rect bound in BoundsArr)
-            }
-        }
-
+        
         // used by DefineBounds and SegmentBound methods
         private Point[][] tmpPoints;
         private Rect[] tmpBounds;
@@ -1336,7 +1550,7 @@ namespace zxCalculator
 
         public Rect DefineBounds(Point[][] SegmentsPoints)
         {
-            int segNum = SegmentsPoints.GetLength(0);
+            int segNum = SegmentsPoints.Length;
 
             tmpPoints = SegmentsPoints;
             tmpBounds = new Rect[segNum];
@@ -1467,6 +1681,7 @@ namespace zxCalculator
             GraphMatrix.OffsetX = OffsetU;
             GraphMatrix.OffsetY = OffsetV;
             GraphMxTr.Matrix = GraphMatrix;
+            foreach (Filtering F in OutFilters) F?.Invoke();
 
             // ------- Defining of the linear grid step for X-axis ------------------------------------------------------------------------
             UStep = 0.5 * (UStepMin + UStepMax); // define most preferable value for the grid representation in u,v space
@@ -1479,7 +1694,7 @@ namespace zxCalculator
             // if UStep is beyond the limits then find suitable factor to place UStep into the range
             if (UStep < UStepMin)
             {
-                int Num = XstepFactors.GetLength(0) - 1;
+                int Num = XstepFactors.Length - 1;
                 XfactorInd = 0;
                 double factor = 1;
 
@@ -1499,7 +1714,7 @@ namespace zxCalculator
             }
             else if (UStep > UStepMax)
             {
-                int Num = XstepFactors.GetLength(0) - 1;
+                int Num = XstepFactors.Length - 1;
                 XfactorInd = Num;
                 double factor = 1;
 
@@ -1531,7 +1746,7 @@ namespace zxCalculator
             // if UStep is beyond the limits then find suitable factor to place UStep into the range
             if (VStep < VStepMin)
             {
-                int Num = YstepFactors.GetLength(0) - 1;
+                int Num = YstepFactors.Length - 1;
                 YfactorInd = 0;
                 double factor = 1;
 
@@ -1551,7 +1766,7 @@ namespace zxCalculator
             }
             else if (VStep > VStepMax)
             {
-                int Num = YstepFactors.GetLength(0) - 1;
+                int Num = YstepFactors.Length - 1;
                 YfactorInd = Num;
                 double factor = 1;
 

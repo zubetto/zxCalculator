@@ -91,8 +91,14 @@ namespace zxCalculator
         private static double argArrLimB = 10;
         private static double argArrStep = 0.1;
         private static long argArrLength = 101;
+        private static double[] argArrParams = new double[3] { 0, 10, 0.1 };
 
         public static long ArgArrayLength { get { return argArrLength; } }
+
+        /// <summary>
+        /// [0] - limA, [1] - limB, [2] - step
+        /// </summary>
+        public static double[] RangeParameters { get { return argArrParams; } }
 
         public static double ArgArrayLimA
         {
@@ -117,7 +123,9 @@ namespace zxCalculator
                 {
                     argArrLimA = argArrLimB - argArrStep;
                     argArrLength = 2;
-                } 
+                }
+
+                argArrParams[0] = argArrLimA;
             }
         }
 
@@ -144,7 +152,9 @@ namespace zxCalculator
                 {
                     argArrLimB = argArrLimA + argArrStep;
                     argArrLength = 2;
-                } 
+                }
+
+                argArrParams[1] = argArrLimB;
             }
         }
 
@@ -174,10 +184,12 @@ namespace zxCalculator
                         argArrStep = band;
                         argArrLength = 2;
                     }
+
+                    argArrParams[2] = argArrStep;
                 }
             }
         }
-
+        
         private static bool isRangeAct = false;
         public static bool IsRangeActive { get { return isRangeAct; } }
 
@@ -296,7 +308,7 @@ namespace zxCalculator
 
             argsLabelsSerial = serial;
 
-            int newNum = newLabels.GetLength(0);
+            int newNum = newLabels.Length;
             int addNum = 0;
             bool addEmpty = false;
 
@@ -808,7 +820,17 @@ namespace zxCalculator
         public int Index
         {
             get { return itemIndex; }
-            set { if (itemIndex < 0) itemIndex = value; }
+            set
+            {
+                if (itemIndex < 0)
+                {
+                    itemIndex = value;
+
+                    // Using the filter for output to the plotter
+                    outputSampler = new PointsSampler(AppStuff.RangeParameters);
+                    AppStuff.Plotter.AddGraph(itemIndex, outputSampler); // connecting the filter to the plotter output slot
+                } 
+            }
         }
 
         public readonly Function Cfunc; // custom function loaded from dll
@@ -822,6 +844,7 @@ namespace zxCalculator
         public readonly Interrupter InterruptControl = new Interrupter();
 
         private AnalysisData[] SegmentsData;
+        public AnalysisData[] SegmentsInfo { get { return SegmentsData; } }
         private int segmentsNum = 0;
         private int segmentsCompleted = 0;
         private SWShapes.Rectangle progressBar;
@@ -840,6 +863,8 @@ namespace zxCalculator
         private double outputValue = double.NaN;
         private double[][] outputSegments = null;
         private double[] outputStitchedArray = null;
+        private PointsSampler outputSampler;
+
         private string exceptionStr = "";
         private bool exceptionFlag = false;
         private bool ArrInProgress = false;
@@ -873,6 +898,7 @@ namespace zxCalculator
         {
             SerialNumber = AppStuff.SerialNumber;
 
+            // Custom function from dll
             Cfunc = funcData.Calculate;
 
             if (funcData.argsNum > 1) argsNum = funcData.argsNum;
@@ -883,13 +909,13 @@ namespace zxCalculator
             description = funcData.Description;
             argsLabels = funcData.ArgLabels;
 
-            int num = argsLabels.GetLength(0);
+            int num = argsLabels.Length;
             for (int i = 0; i < num; i++)
             {
                 if (argsLabels[i].Length > 7) argsLabels[i] = argsLabels[i].Substring(0, 7);
                 else if (String.IsNullOrWhiteSpace(argsLabels[i])) argsLabels[i] = String.Format("x{0}", i);
             }
-
+            
             // <<<<<<< funcPanel = new DockPanel(); >>>>>>>
             funcPanel = new DockPanel();
             funcPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -967,6 +993,8 @@ namespace zxCalculator
             int index = (int)info;
 
             AnalysisData segData = SegmentsData[index];
+            segData.Complete();
+
             double segmentMin = segData.Minimum;
             double segmentMax = segData.Maximum;
 
@@ -985,7 +1013,7 @@ namespace zxCalculator
             if (segmentMin < funcMin) funcMin = segmentMin;
             if (segmentMax > funcMax) funcMax = segmentMax;
 
-            // --- Pass the points to the Plotter ------------------------------------------------------------------------
+            /*// --- Pass the points to the Plotter, NO Filter in use -----------------------------------------------------------------------
             Point[] ptArr = segData.PointsArray;
             int num = segData.SegmentLength;
 
@@ -1001,12 +1029,16 @@ namespace zxCalculator
                     ptArr[i] = new Point(x, Yarr[i]);
                     x += dx;
                 }
-            }
+            } // */
 
             // in System.Windows.Rect: Bottom = Top + Height;
             // segmentMin is Rect.Top
             Rect bounds = new Rect(segData.SegmentLimA, segmentMin, segData.SegmentLimB - segData.SegmentLimA, segmentMax - segmentMin);
-            AppStuff.Plotter.AddSegment(itemIndex, index, bounds, ptArr);
+
+            //AppStuff.Plotter.AddSegment(itemIndex, index, bounds, ptArr); // adding segment without Filter in use
+
+            //The PointsSampler filter uses only values from the outputSegments arrays
+            AppStuff.Plotter.AddSegment(itemIndex, bounds, first: segmentsCompleted == 0); // adding segment with Filter in use
 
             // --- Checking of the entire work completion -------------------------------------------------------------------------
             if (++segmentsCompleted < segmentsNum) // IN PROGRESS
@@ -1093,8 +1125,8 @@ namespace zxCalculator
             int index = (int)state;
 
             AnalysisData Dat = SegmentsData[index];
-            Dat.SetRange();
-            
+            Dat.ResetData();
+
             // calculate custom function on the given range
             try
             {
@@ -1112,6 +1144,12 @@ namespace zxCalculator
             progressBar.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new UIupdater(MarkSegmentCompletion), index);
         }
 
+        /// <summary>
+        /// Initializes the segmented array calculation;
+        /// The original array is divided into segments accordingly with the dosage value (AppStuff.ArgArrDosage);
+        /// Information about each segment is entered to the SegmentsData;
+        /// Finally, calculation of each segment is started in separate thread;
+        /// </summary>
         private void IniCalcArray()
         {
             if (ArrInProgress) return; // >>>>>>> >>>>>>>
@@ -1126,10 +1164,16 @@ namespace zxCalculator
             int addLength = (int)(AppStuff.ArgArrayLength % segLength);
             int prevNum = -1;
 
+            if (segNum > 0 && addLength < 0.1 * segLength)
+            {
+                addLength += segLength;
+                segNum--;
+            }
+
             segmentsNum = segNum;
             if (addLength != 0) segmentsNum++;
 
-            if (outputSegments != null) prevNum = outputSegments.GetLength(0);
+            if (outputSegments != null) prevNum = outputSegments.Length;
 
             if (segmentsNum != prevNum) // means that the range has been changed
             {
@@ -1137,7 +1181,7 @@ namespace zxCalculator
                 SegmentsData = new AnalysisData[segmentsNum];
             }
 
-            AppStuff.Plotter.AddGraph(itemIndex, segmentsNum, new Rect()); // initialize graph in the Plotter
+            //AppStuff.Plotter.AddGraph(itemIndex, segmentsNum, new Rect()); // initialize graph in the Plotter; without filter in use
 
             argInd = AppStuff.ArgIndex;
             double step = AppStuff.ArgArrayStep;
@@ -1148,10 +1192,16 @@ namespace zxCalculator
             InterruptControl.ResetFlags();
             segmentsCompleted = 0;
 
+            // The outputSampler filtering method needs information about the all segments,
+            // therefore it could refer to a non-initialized or obsolete item of the SegmentsData array;
+            // The input flag prevents this race condition and should be setted only after
+            // initializing of all elements of the SegmentsData array;
+            outputSampler.ResetInputFlag(); 
+
             // ONE THREAD for each segment
             for (int i = 0; i < segNum; i++)
             {
-                SegmentsData[i] = new AnalysisData(args, BYTE_SIZE, argInd, segLength, limA, double.NaN, step, new Point[segLength]);
+                SegmentsData[i] = new AnalysisData(args, BYTE_SIZE, argInd, segLength, limA, double.NaN, step);
 
                 AppStuff.MarkWorkStart();
                 ThreadPool.QueueUserWorkItem(new WaitCallback(CalcArray), i);
@@ -1161,11 +1211,15 @@ namespace zxCalculator
 
             if (addLength != 0)
             {
-                SegmentsData[segNum] = new AnalysisData(args, BYTE_SIZE, argInd, addLength, limA, limB, step, new Point[addLength]);
+                SegmentsData[segNum] = new AnalysisData(args, BYTE_SIZE, argInd, addLength, limA, limB, step);
 
                 AppStuff.MarkWorkStart();
                 ThreadPool.QueueUserWorkItem(new WaitCallback(CalcArray), segNum);
             }
+
+            // Updating the data references for the sampler and setting the input flag 
+            // signaling about of availability of all elements of the SegmentsData
+            outputSampler.SetInput(outputSegments, SegmentsData); 
         }
 
         public void ONclick_bttFunc(object sender, RoutedEventArgs e)

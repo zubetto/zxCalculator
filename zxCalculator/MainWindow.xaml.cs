@@ -54,7 +54,7 @@ namespace zxCalculator
 
                     files = dlgOpenFile.FileNames;
 
-                    int num = files.GetLength(0);
+                    int num = files.Length;
 
                     Assembly calcDLL;
                     Type[] types;
