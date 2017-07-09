@@ -38,7 +38,10 @@ namespace zxCalculator
         double[] ArgumentSet { get; }
 
         int SegmentLength { get; }
-        
+        double SegmentLimA { get; }
+        double SegmentLimB { get; }
+        double SegmentStep { get; }
+
         /// <summary>
         /// Sets point coordinates for plotting. X,Y values are checked for NaN and +-Infinity
         /// </summary>
@@ -56,6 +59,9 @@ namespace zxCalculator
 
     public class AnalysisData : IAnalyzer
     {
+        private bool completed = false;
+        public bool IsComplete { get { return completed; } }
+
         // inputs
         private double[] argSet;
         private Point[] PointsArr;
@@ -87,6 +93,8 @@ namespace zxCalculator
 
         void IAnalyzer.SetPoint(int i, double X, double Y)
         {
+            if (PointsArr == null) return; // >>>>> Do not collect points >>>>>
+
             // checking of X
             if (double.IsNaN(X))
             {
@@ -114,25 +122,28 @@ namespace zxCalculator
             exceptionsStr += string.Format("Segment {0}:\n\r{1}\n\r---------\n\n\r", i, e);
         }
 
+        public void Complete()
+        {
+            completed = true;
+        }
+
         public void ResetData()
         {
+            completed = false;
+
             min = double.PositiveInfinity;
             max = double.NegativeInfinity;
-
-            PointsArr[0].X = double.PositiveInfinity; // unreliable but simple way to know whether the array has been set
-            PointsArr[PointsArr.GetLength(0) - 1].X = double.NegativeInfinity;
+            
+            if (PointsArr != null)
+            {
+                PointsArr[0].X = double.PositiveInfinity; // unreliable but simple way to know whether the array has been set
+                PointsArr[PointsArr.GetLength(0) - 1].X = double.NegativeInfinity;
+            }
 
             exceptionsStr = "";
         }
 
-        public void SetRange()
-        {
-            if (double.IsNaN(Xmax) || Xmax < Xmin) Xmax = Xmin + (Num - 1) * Xstep;
-
-            ResetData();
-        }
-
-        public AnalysisData(double[] args, int byteSize, int argIndex, int num, double limA, double limB, double step, Point[] ptArr)
+        public AnalysisData(double[] args, int byteSize, int argIndex, int num, double limA, double limB, double step, Point[] ptArr = null)
         {
             argSet = new double[args.GetLength(0)];
 
@@ -146,6 +157,8 @@ namespace zxCalculator
             Xmin = limA;
             Xmax = limB;
             Xstep = step;
+
+            if (double.IsNaN(Xmax) || Xmax < Xmin) Xmax = Xmin + (Num - 1) * Xstep;
 
             PointsArr = ptArr;
         }
