@@ -9,4 +9,5 @@ The class *PointsSampler* implements a filtering method for efficient representa
   
 Next steps are implementation of a calculation interruption (pausing and canceling) and more attractive interface;  
   
-![GitHub Logo](/images/logo.png)
+![CoordinateGrid output examples](/CoordinateGrid_001.png)
+(/CoordinateGrid_002.png)
