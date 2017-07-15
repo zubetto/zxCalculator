@@ -36,9 +36,9 @@ namespace zxCalculator
         private AnalysisData[] inputInfo;
         private double[] XRange; // [0] - limA, [1] - limB, [2] - step
         private bool inputIsSetted = false;
-        
-        // SimpleSampler params
-        private int PointsMaxNum = 1000; // maximum number of points that could be outputted
+
+        // Maximum number of points that could be outputted
+        private int PointsMaxNum = 1170; // setted equal to the width of the maximum stretched outputCanvas
         public int PointsNumber
         {
             get { return PointsMaxNum; }
@@ -54,7 +54,7 @@ namespace zxCalculator
             }
         }
 
-        public PointsSampler(double[] range, int maxPoints = 2000)
+        public PointsSampler(double[] range, int maxPoints = 1170)
         {
             if (maxPoints > 0) PointsMaxNum = maxPoints;
 
@@ -194,6 +194,196 @@ namespace zxCalculator
                     double du = Mx.OffsetX, dv = Mx.OffsetY;
 
                     // *** Outputting of the points ***
+                    for (int i = firstViewInd; i < lastViewInd; i++) // segments loop
+                    {
+                        if (inputInfo[i].IsComplete)
+                        {
+                            Segment = inputYArr[i];
+                            SegLen = Segment.Length;
+
+                            while (indA < SegLen) // points loop
+                            {
+                                outputPoints[ptInd].X = ku * X + du;
+                                outputPoints[ptInd].Y = kv * Segment[indA] + dv;
+
+                                ptInd++;
+                                indA += incr;
+                                X += Xspan;
+                            }
+
+                            indA -= SegLen;
+                        }
+                        else
+                        {
+                            indA = 0;
+                        }
+                    } // end of segments loop
+
+                    // The last segment loop with i = lastViewInd
+                    Segment = inputYArr[lastViewInd];
+                    SegLen = Segment.Length - 1; // last index
+
+                    while (indA < indB) // points loop
+                    {
+                        outputPoints[ptInd].X = ku * X + du;
+                        outputPoints[ptInd].Y = kv * Segment[indA] + dv;
+
+                        if (++ptInd == PointsMaxNum)
+                        {
+                            plSegment.Points = new PointCollection(outputPoints);
+                            outputGeometry.Figures[0].StartPoint = outputPoints[0];
+                            return outputPoints; // >>>>> COMPLETED >>>>>
+                        }
+
+                        indA += incr;
+                        X += Xspan;
+                    }
+
+                    if (indA > SegLen)
+                    {
+                        outputPoints[ptInd].X = ku * XlimB + du;
+                        outputPoints[ptInd].Y = kv * Segment[SegLen] + dv;
+                    }
+                    else // indB < SegLen
+                    {
+                        outputPoints[ptInd].X = ku * X + du;
+                        outputPoints[ptInd].Y = kv * Segment[indA] + dv;
+                    }
+
+                    // Filling out remaining points
+                    X = outputPoints[ptInd].X;
+                    Xspan = outputPoints[ptInd].Y; // just reusing the variable
+                    
+                    while (++ptInd < PointsMaxNum)
+                    {
+                        outputPoints[ptInd].X = X;
+                        outputPoints[ptInd].Y = Xspan;
+                    }
+
+                    plSegment.Points = new PointCollection(outputPoints);
+                    outputGeometry.Figures[0].StartPoint = outputPoints[0];
+                }
+
+                return outputPoints;
+            }
+            catch (Exception e)
+            {
+                string es = e.ToString();
+                return null;
+            }
+
+            
+        }
+
+        /// <summary>
+        /// Multithreading version
+        /// </summary>
+        /// <param name="state"></param>
+        public void Filter(object state) // #### CHANGE IS NEEDED ####
+        {
+            try
+            {
+                if (!(inputIsSetted && outputIsSetted)) return; // >>>>>>> To prevent race condition >>>>>>>
+
+                Matrix Mx = MxTransformXYtoUV.Matrix;
+
+                // u = x * ratioXtoU + offsetU;     
+                // v = y * ratioYtoV + offsetV; 
+                // x = (u - offsetU) / ratioXtoU;
+                // y = (v - offsetV) / ratioYtoV;
+                double viewLimA = -Mx.OffsetX / Mx.M11;
+                double viewLimB = (outputCanvas.ActualWidth - Mx.OffsetX) / Mx.M11;
+
+                // [0] - limA, [1] - limB, [2] - step
+                double XlimA = XRange[0];
+                double XlimB = XRange[1];
+                double Xstep = XRange[2];
+
+                PolyLineSegment plSegment = outputGeometry.Figures[0].Segments[0] as PolyLineSegment;
+
+                if (viewLimA >= XlimB || viewLimB <= XlimA) // Entire graph is out-of-sight
+                {
+                    plSegment.IsStroked = false;
+                    return; // >>>>> >>>>>
+                }
+                else // Searching for completed segments in the field of view
+                {
+                    plSegment.IsStroked = true;
+
+                    int SegNum = inputYArr.Length;
+                    int firstViewInd = -1;
+                    int lastViewInd = -1;
+
+                    // Searching for first completed segment in the field of view
+                    for (int i = 0; i < SegNum; i++)
+                    {
+                        if (inputInfo[i].IsComplete && inputInfo[i].SegmentLimB > viewLimA)
+                        {
+                            firstViewInd = i;
+                            break;
+                        }
+                    }
+
+                    if (firstViewInd < 0) // Neither segment is completed
+                    {
+                        plSegment.IsStroked = false;
+                        return; // >>>>> >>>>>
+                    }
+
+                    // Searching for last completed segment in the field of view 
+                    for (int i = SegNum - 1; i >= 0; i--)
+                    {
+                        if (inputInfo[i].IsComplete && inputInfo[i].SegmentLimA < viewLimB)
+                        {
+                            lastViewInd = i;
+                            break;
+                        }
+                    }
+
+                    if (lastViewInd < firstViewInd) // All completed segments are out-of-sight
+                    {
+                        plSegment.IsStroked = false;
+                        return; // >>>>> >>>>>
+                    }
+
+                    // Defining number of all points in the field of view
+                    double dA = viewLimA - inputInfo[firstViewInd].SegmentLimA;
+                    double dB = inputInfo[lastViewInd].SegmentLimB - viewLimB;
+
+                    int indA = 0;
+                    int indB = inputInfo[lastViewInd].SegmentLength - 1;
+
+                    if (dA > Xstep) indA = (int)Math.Floor(dA / Xstep);
+                    if (dB > Xstep) indB -= (int)Math.Floor(dB / Xstep);
+
+                    // Reducing the number of output points by using index increment
+                    int incr = indB - indA + 1; // Is equal to ratio of number of all points in the field of view and the PointsMaxNum
+
+                    // Adding length of each completed segment located between the first and the last
+                    if (firstViewInd < lastViewInd)
+                    {
+                        incr += inputInfo[firstViewInd].SegmentLength;
+
+                        for (int i = firstViewInd + 1; i < lastViewInd; i++)
+                        {
+                            if (inputInfo[i].IsComplete) incr += inputInfo[i].SegmentLength;
+                        }
+                    }
+
+                    //incr /= PointsMaxNum;
+                    incr = (int)Math.Ceiling(1.0 * incr / PointsMaxNum);
+                    if (incr == 0) incr = 1;
+
+                    // Init variables for the segments iteration
+                    int SegLen;
+                    int ptInd = 0;
+                    double Xspan = incr * Xstep;
+                    double X = inputInfo[firstViewInd].SegmentLimA + indA * Xstep;
+                    double[] Segment;
+                    double ku = Mx.M11, kv = Mx.M22;
+                    double du = Mx.OffsetX, dv = Mx.OffsetY;
+
+                    // *** Outputting of the points ***
                     for (int i = firstViewInd; i <= lastViewInd; i++) // segments loop
                     {
                         if (inputInfo[i].IsComplete)
@@ -210,7 +400,7 @@ namespace zxCalculator
                                 {
                                     plSegment.Points = new PointCollection(outputPoints);
                                     outputGeometry.Figures[0].StartPoint = outputPoints[0];
-                                    return outputPoints; // >>>>> COMPLETED >>>>>
+                                    return; // >>>>> COMPLETED >>>>>
                                 }
 
                                 indA += incr;
@@ -240,17 +430,16 @@ namespace zxCalculator
                     outputGeometry.Figures[0].StartPoint = outputPoints[0];
                 }
 
-                return outputPoints;
+                return;
             }
             catch (Exception e)
             {
                 string es = e.ToString();
-                return null;
+                return;
             }
 
-            
+
         }
-        
     } // end of public class PointsSampler ///////////////////////////////////////////////////////////////////////////////////////////////
 
     /// <summary>
@@ -265,9 +454,33 @@ namespace zxCalculator
         {
             void SetOutput(Canvas outCanvas, Geometry outGeom);
             Point[] Filter();
+            void Filter(object state); // For multi-thread processing
         }
 
-        private MainWindow windowMain;
+        public class MouseMoveEventArgs : EventArgs
+        {
+            public readonly Matrix XYtoUV;
+            public readonly Point MousePointUV;
+
+            public bool ShowUline = true;
+            public bool ShowVline = true;
+            public bool ShowMarker = true;
+
+            public Point MarkerPointXY = new Point(double.NegativeInfinity, double.NegativeInfinity);
+
+            public MouseMoveEventArgs(Matrix transitionMatrix, Point mousePoint)
+            {
+                XYtoUV = transitionMatrix;
+                MousePointUV = mousePoint;
+            }
+        }
+
+        /// <summary>
+        /// u = x * XYtoUV.M11 + XYtoUV.OffsetX;     
+        /// v = y * XYtoUV.M22 + XYtoUV.OffsetY;
+        /// </summary>
+        public event EventHandler<MouseMoveEventArgs> MouseMove;
+        
         private Canvas outputCanvas;
 
         public double MaxWidth = SystemParameters.PrimaryScreenWidth;
@@ -339,6 +552,12 @@ namespace zxCalculator
         public SolidColorBrush GridMatBrush = new SolidColorBrush(Color.FromArgb(170, 50, 50, 50));
         public SolidColorBrush GridBorderBrush = new SolidColorBrush(Color.FromArgb(255, 150, 233, 233));
 
+        private SWShapes.Path MarkerUline = new SWShapes.Path();
+        private SWShapes.Path MarkerVline = new SWShapes.Path();
+        private SWShapes.Ellipse Marker = new SWShapes.Ellipse();
+        public SolidColorBrush MarkerLinesBrush = new SolidColorBrush(Color.FromArgb(170, 170, 170, 170));
+        public SolidColorBrush MarkerBrush = new SolidColorBrush(Color.FromArgb(255, 100, 150, 255));
+
         private Canvas UlabelsArea = new Canvas();
         private Canvas VlabelsArea = new Canvas();
         private UniformGrid UlabelsCells = new UniformGrid();
@@ -390,13 +609,14 @@ namespace zxCalculator
         private MatrixTransform InnerRectMxTr = new MatrixTransform();
         private TranslateTransform UlabelsTT = new TranslateTransform();
         private TranslateTransform VlabelsTT = new TranslateTransform();
-
-        private bool MLBflag = false;
+        private TranslateTransform MarkerTT = new TranslateTransform();
+        private TranslateTransform MarkerUlineTT = new TranslateTransform();
+        private TranslateTransform MarkerVlineTT = new TranslateTransform();
+        
         private Point MouseIniPoint;
 
-        public CoordinateGrid(MainWindow mainwin, Canvas canvas, int slots, Thickness padding = new Thickness())
+        public CoordinateGrid(Canvas canvas, int slots, Thickness padding = new Thickness())
         {
-            windowMain = mainwin;
             outputCanvas = canvas;
             outputCanvas.Cursor = Cursors.Cross;
             
@@ -507,18 +727,65 @@ namespace zxCalculator
             unitsVlabel.RenderTransform = new RotateTransform(-90, 0.5 * unitsVlabel.DesiredSize.Width, 0.5 * unitsVlabel.Height);
             unitsVlabel.Content = "Contents";
 
-            // --- subscribe on events -------------------------
-            outputCanvas.SizeChanged += CanvasSizeChanged;
-            outputCanvas.MouseWheel += MouseWheel;
-            outputCanvas.MouseLeftButtonDown += MLBdown;
-            outputCanvas.MouseMove += ON_MouseOver;
+            // --- marker and marker lines ---------------------
+            Marker.Width = 4;
+            Marker.Height = 4;
+            Marker.Visibility = Visibility.Collapsed;
+            Marker.Fill = MarkerBrush;
+            Marker.RenderTransform = MarkerTT;
+            //Canvas.SetZIndex(Marker, 5);
+            Canvas.SetLeft(Marker, -0.5 * Marker.Width);
+            Canvas.SetTop(Marker, -0.5 * Marker.Height);
 
-            windowMain.PreviewMouseMove += MLBholdMove;
-            windowMain.PreviewMouseLeftButtonUp += MLBup;
+            MarkerUline.Data = new PathGeometry(new PathFigure[1] 
+                                              { new PathFigure(new Point(0, -MaxHeight), new PathSegment[1] 
+                                              { new LineSegment(new Point(0, MaxHeight), true)}, false) });
+
+            MarkerVline.Data = new PathGeometry(new PathFigure[1]
+                                              { new PathFigure(new Point(-MaxWidth, 0), new PathSegment[1]
+                                              { new LineSegment(new Point(MaxWidth, 0), true)}, false) });
+
+            MarkerUline.Stroke = MarkerLinesBrush;
+            MarkerVline.Stroke = MarkerLinesBrush;
+            MarkerUline.StrokeThickness = 1;
+            MarkerVline.StrokeThickness = 1;
+            MarkerUline.Visibility = Visibility.Collapsed;
+            MarkerVline.Visibility = Visibility.Collapsed;
+            MarkerUline.Data.Transform = MarkerUlineTT;
+            MarkerVline.Data.Transform = MarkerVlineTT;
+            Canvas.SetZIndex(MarkerUline, -10);
+            Canvas.SetZIndex(MarkerVline, -10);
+            Canvas.SetLeft(MarkerUline, 0);
+            Canvas.SetLeft(MarkerVline, 0);
+            Canvas.SetTop(MarkerUline, 0);
+            Canvas.SetTop(MarkerVline, 0);
+
+            outputCanvas.Children.Add(Marker);
+            outputCanvas.Children.Add(MarkerUline);
+            outputCanvas.Children.Add(MarkerVline);
+
+            // --- subscribe on events -------------------------
+            // Such a way of subscribing is used due to unexpected behaviour of the mouse event handlers;
+            // Literally, the MLBholdMove() should handles the MouseMove event after call of the MLBdown()
+            // and until call of the MLBup(). But at very first press of the MLB the MLBholdMove() is called only once,
+            // no matter how long the MLB remains pressed while mouse move. The next sequences of these events
+            // are handled in right manner. Subscribing in that way prevents the first-click issue.
+            outputCanvas.MouseEnter += SetHandlers;
 
             // --- ini fiealds ---------------------------------
             zoomBase = UStepMax / UStepMin;
             zoomFactor = Math.Pow(zoomBase, 1.0 / zoomDetents);
+        }
+
+        private void SetHandlers(object sender, RoutedEventArgs e)
+        {
+            outputCanvas.SizeChanged += CanvasSizeChanged;
+            outputCanvas.MouseWheel += MouseWheel;
+            outputCanvas.MouseLeftButtonDown += MLBdown;
+            outputCanvas.MouseLeftButtonUp += MLBup;
+            outputCanvas.MouseMove += ON_MouseOver;
+
+            outputCanvas.MouseEnter -= SetHandlers;
         }
 
         public void AddFilter(int index, IPointsFilter filterData)
@@ -827,177 +1094,261 @@ namespace zxCalculator
 
             VlabelsArea.Height = e.NewSize.Height - topIndent - bottomIndent + LabelsFontSize;
             Canvas.SetTop(unitsVlabel, 0.5 * (VlabelsArea.Height - unitsVlabel.Height));
-        }
 
+            if (AutoFit) FitIn();
+        }
+        
         private void MLBdown(object sender, MouseButtonEventArgs e)
         {
-            MLBflag = true;
             MouseIniPoint = e.GetPosition(outputCanvas);
-            windowMain.CaptureMouse();
-            windowMain.Cursor = Cursors.ScrollAll;
-        }
 
+            outputCanvas.Cursor = Cursors.ScrollAll;
+            outputCanvas.CaptureMouse();
+
+            outputCanvas.MouseLeftButtonDown -= MLBdown;
+
+            outputCanvas.MouseMove -= ON_MouseOver;
+            outputCanvas.MouseMove += MLBholdMove;
+        }
+        private int count = 0;
         private void MLBup(object sender, MouseButtonEventArgs e)
         {
-            MLBflag = false;
-            windowMain.ReleaseMouseCapture();
-            windowMain.Cursor = Cursors.Arrow;
+            outputCanvas.ReleaseMouseCapture();
+            outputCanvas.Cursor = Cursors.Cross;
+
+            outputCanvas.MouseLeftButtonDown += MLBdown;
+
+            outputCanvas.MouseMove -= MLBholdMove;
+            outputCanvas.MouseMove += ON_MouseOver;
+        }
+
+        private void UpdateMarker()
+        {
+            
         }
 
         private void ON_MouseOver(object sender, MouseEventArgs e)
         {
             Point currPoint = e.GetPosition(outputCanvas);
+            double pU = currPoint.X;
+            double pV = currPoint.Y;
+
+            MouseMoveEventArgs eArgs = new MouseMoveEventArgs(GraphMatrix, currPoint);
+
+            MouseMove?.Invoke(this, eArgs);
+
+            // Obtain the Marker Point
+            if (!double.IsNegativeInfinity(eArgs.MarkerPointXY.X))
+            {
+                pU = GraphMatrix.M11 * eArgs.MarkerPointXY.X + GraphMatrix.OffsetX;
+            }
+
+            if (!double.IsNegativeInfinity(eArgs.MarkerPointXY.Y))
+            {
+                pV = GraphMatrix.M22 * eArgs.MarkerPointXY.Y + GraphMatrix.OffsetY;
+            }
+
+            if (eArgs.ShowMarker)
+            {
+                if (!Marker.IsVisible) Marker.Visibility = Visibility.Visible;
+                
+                MarkerTT.X = pU;
+                MarkerTT.Y = pV;
+            }
+            else if (Marker.IsVisible) Marker.Visibility = Visibility.Collapsed;
+
+            if (eArgs.ShowUline)
+            {
+                if (!MarkerUline.IsVisible) MarkerUline.Visibility = Visibility.Visible;
+                
+                MarkerUlineTT.X = pU;
+                MarkerUlineTT.Y = pV;
+            }
+            else if (MarkerUline.IsVisible) MarkerUline.Visibility = Visibility.Collapsed;
+
+            if (eArgs.ShowVline)
+            {
+                if (!MarkerVline.IsVisible) MarkerVline.Visibility = Visibility.Visible;
+                
+                MarkerVlineTT.X = pU;
+                MarkerVlineTT.Y = pV;
+            }
+            else if (MarkerVline.IsVisible) MarkerVline.Visibility = Visibility.Collapsed;
+
+            // Update the graphs geometry due to pixels erasing issue at large zoom-in
+            //outputCanvas.Dispatcher.Invoke(UpdateMarker);
+            //foreach (Filtering F in OutFilters) F?.Invoke();
 
             // TESTs ------------------------------------
-            App myApp = Application.Current as App;
-            myApp.myLabelUV.Content = String.Format("UV: {0,5:n1} | {1,5:n1}", currPoint.X, currPoint.Y);
+            //App myApp = Application.Current as App;
+            //myApp.myLabelUV.Content = String.Format("UV: {0,5:n1} | {1,5:n1}", currPoint.X, currPoint.Y);
 
-            double x = (currPoint.X - OffsetU) / ratioXtoU;
-            double y = (currPoint.Y - OffsetV) / ratioYtoV;
+            //double x = (currPoint.X - OffsetU) / ratioXtoU;
+            //double y = (currPoint.Y - OffsetV) / ratioYtoV;
 
-            myApp.myLabelXY.Content = String.Format("XY: {0,5:n1} | {1,5:n1}", x, y);
+            //myApp.myLabelXY.Content = String.Format("XY: {0,5:n1} | {1,5:n1}", x, y);
         }
 
         private void MLBholdMove(object sender, MouseEventArgs e)
         {
+            count++;
             Point currPoint = e.GetPosition(outputCanvas);
 
-            if (MLBflag)
+            double du = currPoint.X - MouseIniPoint.X;
+            double dv = currPoint.Y - MouseIniPoint.Y;
+
+            OffsetU += du;
+            OffsetV += dv;
+            GraphMatrix.OffsetX = OffsetU;
+            GraphMatrix.OffsetY = OffsetV;
+            GraphMxTr.Matrix = GraphMatrix;
+            foreach (Filtering F in OutFilters) F?.Invoke();
+
+            UgridMatrix.OffsetX += du;
+            VgridMatrix.OffsetY += dv;
+
+            UgridMxTr.Matrix = UgridMatrix;
+            VgridMxTr.Matrix = VgridMatrix;
+            //UgridLinesGeometry.Transform = new MatrixTransform(UgridMatrix); //it litters
+            //VgridLinesGeometry.Transform = new MatrixTransform(VgridMatrix);
+
+            UShift += du;
+            VShift += dv;
+
+            // ------- U-labels offset -----------------------------------------------------------------------------------------------------
+            double shiftNum = Math.Truncate(UShift / UStepScaled);
+
+            if (shiftNum != 0)
             {
-                double du = currPoint.X - MouseIniPoint.X;
-                double dv = currPoint.Y - MouseIniPoint.Y;
+                int pendex = UlabelsArr.Length - 1;
 
-                OffsetU += du;
-                OffsetV += dv;
-                GraphMatrix.OffsetX = OffsetU;
-                GraphMatrix.OffsetY = OffsetV;
-                GraphMxTr.Matrix = GraphMatrix;
-                foreach (Filtering F in OutFilters) F?.Invoke();
+                labelLeft -= GaugeX * shiftNum;
+                labelRight = labelLeft;
 
-                UgridMatrix.OffsetX += du;
-                VgridMatrix.OffsetY += dv;
-
-                UgridMxTr.Matrix = UgridMatrix;
-                VgridMxTr.Matrix = VgridMatrix;
-                //UgridLinesGeometry.Transform = new MatrixTransform(UgridMatrix); //it litters
-                //VgridLinesGeometry.Transform = new MatrixTransform(VgridMatrix);
-
-                UShift += du;
-                VShift += dv;
-
-                // ------- U-labels offset -----------------------------------------------------------------------------------------------------
-                double shiftNum = Math.Truncate(UShift / UStepScaled);
-
-                if (shiftNum != 0)
+                for (int i = 0; i < pendex; i++)
                 {
-                    int pendex = UlabelsArr.Length - 1;
-
-                    labelLeft -= GaugeX * shiftNum;
-                    labelRight = labelLeft;
-
-                    for (int i = 0; i < pendex; i++)
-                    {
-                        UlabelsArr[i].Content = labelRight.ToString(UlabelsFormatSpec);
-                        labelRight += GaugeX;
-                    }
-
-                    UlabelsArr[pendex].Content = labelRight.ToString(UlabelsFormatSpec);
+                    UlabelsArr[i].Content = labelRight.ToString(UlabelsFormatSpec);
+                    labelRight += GaugeX;
                 }
 
-                // ------- V-labels offset -----------------------------------------------------------------------------------------------------
-                shiftNum = Math.Truncate(VShift / VStepScaled);
+                UlabelsArr[pendex].Content = labelRight.ToString(UlabelsFormatSpec);
+            }
 
-                if (shiftNum != 0)
+            // ------- V-labels offset -----------------------------------------------------------------------------------------------------
+            shiftNum = Math.Truncate(VShift / VStepScaled);
+
+            if (shiftNum != 0)
+            {
+                int pendex = VlabelsArr.Length - 1;
+
+                labelTop += GaugeY * shiftNum;
+                labelBottom = labelTop;
+
+                for (int i = 0; i < pendex; i++)
                 {
-                    int pendex = VlabelsArr.Length - 1;
-
-                    labelTop += GaugeY * shiftNum;
-                    labelBottom = labelTop;
-
-                    for (int i = 0; i < pendex; i++)
-                    {
-                        VlabelsArr[i].Content = labelBottom.ToString(VlabelsFormatSpec);
-                        labelBottom -= GaugeY;
-                    }
-
-                    VlabelsArr[pendex].Content = labelBottom.ToString(VlabelsFormatSpec);
+                    VlabelsArr[i].Content = labelBottom.ToString(VlabelsFormatSpec);
+                    labelBottom -= GaugeY;
                 }
 
-                // ------- permutation of the U-lines ------------------------------------------------------------------------------------------
-                int endex = UgridLinesGeometry.Figures.Count - 1;
+                VlabelsArr[pendex].Content = labelBottom.ToString(VlabelsFormatSpec);
+            }
 
-                while (UShift >= UStepScaled) // "move" U-lines from right to left side
-                {
-                    UShift -= UStepScaled;
-                    ULeft -= UStep;
-                    URight -= UStep;
+            // ------- permutation of the U-lines ------------------------------------------------------------------------------------------
+            int endex = UgridLinesGeometry.Figures.Count - 1;
 
-                    UgridLinesGeometry.Figures[indRight] =
-                        new PathFigure(new Point(ULeft, 0), new LineSegment[1] { new LineSegment(new Point(ULeft, MaxHeight), true) }, false);
+            while (UShift >= UStepScaled) // "move" U-lines from right to left side
+            {
+                UShift -= UStepScaled;
+                ULeft -= UStep;
+                URight -= UStep;
 
-                    indLeft--;
-                    indRight--;
+                UgridLinesGeometry.Figures[indRight] =
+                    new PathFigure(new Point(ULeft, 0), new LineSegment[1] { new LineSegment(new Point(ULeft, MaxHeight), true) }, false);
 
-                    if (indLeft < 0) indLeft = endex;
-                    else if (indRight < 0) indRight = endex;
-                }
+                indLeft--;
+                indRight--;
 
-                while (UShift <= -UStepScaled) // "move" U-lines from left to right side
-                {
-                    UShift += UStepScaled;
-                    ULeft += UStep;
-                    URight += UStep;
+                if (indLeft < 0) indLeft = endex;
+                else if (indRight < 0) indRight = endex;
+            }
 
-                    UgridLinesGeometry.Figures[indLeft] =
-                        new PathFigure(new Point(URight, 0), new LineSegment[1] { new LineSegment(new Point(URight, MaxHeight), true) }, false);
+            while (UShift <= -UStepScaled) // "move" U-lines from left to right side
+            {
+                UShift += UStepScaled;
+                ULeft += UStep;
+                URight += UStep;
 
-                    indLeft++;
-                    indRight++;
+                UgridLinesGeometry.Figures[indLeft] =
+                    new PathFigure(new Point(URight, 0), new LineSegment[1] { new LineSegment(new Point(URight, MaxHeight), true) }, false);
 
-                    if (indLeft > endex) indLeft = 0;
-                    else if (indRight > endex) indRight = 0;
-                }
+                indLeft++;
+                indRight++;
 
-                //UlabelsCells.RenderTransform = new TranslateTransform(UShift, 0); // it litters
-                UlabelsTT.X = UShift;
+                if (indLeft > endex) indLeft = 0;
+                else if (indRight > endex) indRight = 0;
+            }
 
-                // ------- permutation of the V-lines ------------------------------------------------------------------------------------------
-                endex = VgridLinesGeometry.Figures.Count - 1;
+            //UlabelsCells.RenderTransform = new TranslateTransform(UShift, 0); // it litters
+            UlabelsTT.X = UShift;
 
-                while (VShift >= VStepScaled) // "move" V-lines from bottom to top side
-                {
-                    VShift -= VStepScaled;
-                    VTop -= VStep;
-                    VBottom -= VStep;
+            // ------- permutation of the V-lines ------------------------------------------------------------------------------------------
+            endex = VgridLinesGeometry.Figures.Count - 1;
 
-                    VgridLinesGeometry.Figures[indBottom] =
-                        new PathFigure(new Point(0, VTop), new LineSegment[1] { new LineSegment(new Point(MaxWidth, VTop), true) }, false);
+            while (VShift >= VStepScaled) // "move" V-lines from bottom to top side
+            {
+                VShift -= VStepScaled;
+                VTop -= VStep;
+                VBottom -= VStep;
 
-                    indTop--;
-                    indBottom--;
+                VgridLinesGeometry.Figures[indBottom] =
+                    new PathFigure(new Point(0, VTop), new LineSegment[1] { new LineSegment(new Point(MaxWidth, VTop), true) }, false);
 
-                    if (indTop < 0) indTop = endex;
-                    else if (indBottom < 0) indBottom = endex;
-                }
+                indTop--;
+                indBottom--;
 
-                while (VShift <= -VStepScaled) // "move" V-lines from top to bottom side
-                {
-                    VShift += VStepScaled;
-                    VTop += VStep;
-                    VBottom += VStep;
+                if (indTop < 0) indTop = endex;
+                else if (indBottom < 0) indBottom = endex;
+            }
 
-                    VgridLinesGeometry.Figures[indTop] =
-                        new PathFigure(new Point(0, VBottom), new LineSegment[1] { new LineSegment(new Point(MaxWidth, VBottom), true) }, false);
+            while (VShift <= -VStepScaled) // "move" V-lines from top to bottom side
+            {
+                VShift += VStepScaled;
+                VTop += VStep;
+                VBottom += VStep;
 
-                    indTop++;
-                    indBottom++;
+                VgridLinesGeometry.Figures[indTop] =
+                    new PathFigure(new Point(0, VBottom), new LineSegment[1] { new LineSegment(new Point(MaxWidth, VBottom), true) }, false);
 
-                    if (indTop > endex) indTop = 0;
-                    else if (indBottom > endex) indBottom = 0;
-                }
+                indTop++;
+                indBottom++;
 
-                //VlabelsCells.RenderTransform = new TranslateTransform(0, VShift); // it litters
-                VlabelsTT.Y = VShift;
+                if (indTop > endex) indTop = 0;
+                else if (indBottom > endex) indBottom = 0;
+            }
+
+            //VlabelsCells.RenderTransform = new TranslateTransform(0, VShift); // it litters
+            VlabelsTT.Y = VShift;
+
+            // --- Marker and Marker lines update ------------------------------------------------
+            double pU = currPoint.X;
+            double pV = currPoint.Y;
+
+            if (Marker.IsVisible)
+            {
+                MarkerTT.X = pU;
+                MarkerTT.Y = pV;
+            }
+
+            if (MarkerUline.IsVisible)
+            {
+                MarkerUlineTT.X = pU;
+                MarkerUlineTT.Y = pV;
+            }
+
+            if (MarkerVline.IsVisible)
+            {
+                MarkerVlineTT.X = pU;
+                MarkerVlineTT.Y = pV;
             }
 
             MouseIniPoint = currPoint;

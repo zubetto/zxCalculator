@@ -440,8 +440,8 @@ namespace zxCalculator
         public static int testidx = 0;
         public static int Idx { get { return testidx++; } }
 
-        public static TextBox testBoxArgs;
-        public static TextBox testBoxFunc;
+        public static TextBox textBoxArgs;
+        public static TextBox textBoxFunc;
     } // end of public static class AppStuff /////////////////////////////////////////////////////////////////////////////////
 
     public class ArgumentStuff
@@ -582,7 +582,6 @@ namespace zxCalculator
 
         private void LostKeyFocus_RangeBox(object sender, RoutedEventArgs e) // handler for an argument values range definition
         {
-            object o = e.Source;
             TextBox txtBox = e.OriginalSource as TextBox;
 
             if (txtBox != null)
@@ -769,6 +768,7 @@ namespace zxCalculator
 
             // <<<<<<< inputTextBox = new TextBox(); >>>>>>>
             inputTextBox = new TextBox();
+            inputTextBox.ToolTip = "Enter a value following the colon to set the spinner increment (exp. 23:0.01)";
             inputTextBox.LostKeyboardFocus += LostKeyFocus_inputTextBox;
             inputTextBox.KeyDown += KeyDown_inputTextBox;
             inputTextBox.Text = val.ToString();
@@ -926,6 +926,7 @@ namespace zxCalculator
             // <<<<<<< outputTextBox >>>>>>>
             outputTextBox = new TextBox();
             outputTextBox.Style = AppStuff.txtboxStyleOutput;
+            outputTextBox.ToolTip = "Mouse double-click to toggle auto update";
             outputTextBox.Loaded += Loaded_outputTextBox;
             outputTextBox.MouseDoubleClick += ONmouseDoubleClick_TextBox;
 
@@ -938,6 +939,7 @@ namespace zxCalculator
             funcBtt.FontSize = 12;
             if (label.Length > 10) funcBtt.Content = label.Substring(0, 10);
             else funcBtt.Content = label;
+            funcBtt.ToolTip = description;
             funcBtt.Click += ONclick_bttFunc;
 
             // <<<<<<< Xbtt >>>>>>>
@@ -1379,8 +1381,8 @@ namespace zxCalculator
 
             AppStuff.PasteIOdata();
             
-            AppStuff.testBoxArgs = windowMain.FindName("txtboxInput") as TextBox;
-            AppStuff.testBoxFunc = windowMain.FindName("txtboxOutput") as TextBox;
+            AppStuff.textBoxArgs = windowMain.FindName("txtboxInput") as TextBox;
+            AppStuff.textBoxFunc = windowMain.FindName("txtboxOutput") as TextBox;
             AppStuff.stackFunctions = windowMain.FindName("stackFunctions") as StackPanel;
             AppStuff.stackArguments = windowMain.FindName("stackArguments") as StackPanel;
             AppStuff.bttAddFunction = windowMain.FindName("bttAddFunction") as Button;
@@ -1401,7 +1403,7 @@ namespace zxCalculator
             AppStuff.AddArgumentItem();
 
             Canvas plotCanvas = windowMain.FindName("MainCanvas") as Canvas;
-            AppStuff.Plotter = new CoordinateGrid(windowMain, plotCanvas, AppStuff.FunctionsNumber);
+            AppStuff.Plotter = new CoordinateGrid(plotCanvas, AppStuff.FunctionsNumber);
             AppStuff.Plotter.FitIn();//fitSize:new Size(plotCanvas.ActualHeight, plotCanvas.ActualHeight);
             //AppStuff.Plotter.AddGraph(0, 5);
 
