@@ -1095,7 +1095,7 @@ namespace zxCalculator
             VlabelsArea.Height = e.NewSize.Height - topIndent - bottomIndent + LabelsFontSize;
             Canvas.SetTop(unitsVlabel, 0.5 * (VlabelsArea.Height - unitsVlabel.Height));
 
-            if (AutoFit) FitIn();
+            if (BoundsAdded > 0 && AutoFit) FitIn();
         }
         
         private void MLBdown(object sender, MouseButtonEventArgs e)
@@ -1110,16 +1110,19 @@ namespace zxCalculator
             outputCanvas.MouseMove -= ON_MouseOver;
             outputCanvas.MouseMove += MLBholdMove;
         }
-        private int count = 0;
+
         private void MLBup(object sender, MouseButtonEventArgs e)
         {
-            outputCanvas.ReleaseMouseCapture();
-            outputCanvas.Cursor = Cursors.Cross;
+            if (outputCanvas.IsMouseCaptured)
+            {
+                outputCanvas.ReleaseMouseCapture();
+                outputCanvas.Cursor = Cursors.Cross;
 
-            outputCanvas.MouseLeftButtonDown += MLBdown;
+                outputCanvas.MouseLeftButtonDown += MLBdown;
 
-            outputCanvas.MouseMove -= MLBholdMove;
-            outputCanvas.MouseMove += ON_MouseOver;
+                outputCanvas.MouseMove -= MLBholdMove;
+                outputCanvas.MouseMove += ON_MouseOver;
+            }
         }
 
         private void UpdateMarker()
@@ -1191,7 +1194,6 @@ namespace zxCalculator
 
         private void MLBholdMove(object sender, MouseEventArgs e)
         {
-            count++;
             Point currPoint = e.GetPosition(outputCanvas);
 
             double du = currPoint.X - MouseIniPoint.X;
