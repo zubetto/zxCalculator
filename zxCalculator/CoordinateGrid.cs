@@ -796,23 +796,20 @@ namespace zxCalculator
             }
         }
 
-        public void RemoveFilter(int index)
-        {
-            OutFilters[index] = null;
-            RemoveGraph(index);
-        }
+        //public void RemoveFilter(int index)
+        //{
+        //    OutFilters[index] = null;
+        //    RemoveGraph(index);
+        //}
         
         public void AddGraph(int index, IPointsFilter outFilter)
         {
-            if (GraphPaths[index] == null)
-            {
-                GraphPaths[index] = new SWShapes.Path();
-                GraphPaths[index].Data = new PathGeometry();
-                GraphPaths[index].Data.Transform = GraphMxTr;
-                SetGraph(index); // brushes, thickness, stroke
+            GraphPaths[index] = new SWShapes.Path();
+            GraphPaths[index].Data = new PathGeometry();
+            GraphPaths[index].Data.Transform = GraphMxTr;
+            SetGraph(index); // brushes, thickness, stroke
 
-                outputCanvas.Children.Add(GraphPaths[index]);
-            }
+            outputCanvas.Children.Add(GraphPaths[index]);
 
             AddFilter(index, outFilter);
         }
@@ -923,7 +920,7 @@ namespace zxCalculator
 
             if (!Bounds.IsEmpty) AddBounds(indGraph, Bounds);
 
-            if (AutoFit) FitIn();
+            if (AutoFit) FitIn(); // filters will be called within FitIn method
             else OutFilters[indGraph]();
         }
 
@@ -947,11 +944,12 @@ namespace zxCalculator
 
         public void RemoveGraph(int index)
         {
-            if (BoundsAdded == 0) return; // >>>>> GraphPaths is already empty >>>>>
-
             outputCanvas.Children.Remove(GraphPaths[index]);
             GraphPaths[index] = null;
+            OutFilters[index] = null;
             RemoveBounds(index);
+
+            if (BoundsAdded > 0 && AutoFit) FitIn();
         }
 
         readonly string[] SIprefixes = new string[17] { "y", "z", "a", "f", "p", "n", '\u00B5'.ToString(), "m", "", "k", "M", "G", "T", "P", "E", "Z", "Y" };
@@ -1720,7 +1718,7 @@ namespace zxCalculator
         {
             if (Bounds.IsEmpty) return; // >>>>> nothing to add >>>>>
 
-            if (BoundsArr[index].IsEmpty)
+            if (BoundsAdded == 0 || BoundsArr[index].IsEmpty)
             {
                 BoundsArr[index] = Bounds;
                 BoundsAdded++;
@@ -1813,30 +1811,22 @@ namespace zxCalculator
 
             if (BoundsAdded > 0) // shrinking;
             {
-                bool iniFlag = true;
+                BoundsXmin = double.PositiveInfinity;
+                BoundsXmax = double.NegativeInfinity;
+                BoundsYmin = double.PositiveInfinity; 
+                BoundsYmax = double.NegativeInfinity;
 
                 foreach (Rect bound in BoundsArr)
                 {
                     if (!bound.IsEmpty)
                     {
-                        if (iniFlag)
-                        {
-                            BoundsXmin = bound.Left;
-                            BoundsXmax = bound.Right;
-                            BoundsYmin = bound.Top; // Y-axis inversion, as in System.Windows.Rect:
-                            BoundsYmax = bound.Bottom; // Bottom = Top + Height
+                        if (bound.Left < BoundsXmin) BoundsXmin = bound.Left;
+                        if (bound.Right > BoundsXmax) BoundsXmax = bound.Right;
 
-                            iniFlag = false;
-                        }
-                        else
-                        {
-                            if (bound.Left < BoundsXmin) BoundsXmin = bound.Left;
-                            else if (bound.Right > BoundsXmax) BoundsXmax = bound.Right;
-
-                            // keeping in mind that Bottom = Top + Height
-                            if (bound.Top < BoundsYmin) BoundsYmin = bound.Top;
-                            else if (bound.Bottom > BoundsYmax) BoundsYmax = bound.Bottom;
-                        }
+                        // Y-axis inversion, as in System.Windows.Rect:
+                        // Bottom = Top + Height
+                        if (bound.Top < BoundsYmin) BoundsYmin = bound.Top;
+                        if (bound.Bottom > BoundsYmax) BoundsYmax = bound.Bottom;
                     }
                 } // end of foreach (Rect bound in BoundsArr)
 

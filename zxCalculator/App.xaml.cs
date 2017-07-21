@@ -393,6 +393,7 @@ namespace zxCalculator
         public static void RemoveFunctionItem(FunctionStuff item)
         {
             stackFunctions.Children.Remove(item.funcPanel);
+            Plotter.RemoveGraph(item.Index);
             funcItems[item.Index] = null;
 
             if (funcItemsAdded-- == FunctionsNumber)
@@ -950,7 +951,7 @@ namespace zxCalculator
             Xbtt.FontFamily = new FontFamily("Marlett");
             Xbtt.FontSize = 14;
             Xbtt.Content = "r";
-            Xbtt.Click += ONclick_bttX;
+            Xbtt.MouseDoubleClick += DoubleClick_bttX;
 
             // <<<<<<< strokeBtt >>>>>>>
             strokeBtt = new Button();
@@ -1317,7 +1318,7 @@ namespace zxCalculator
             }
         }
 
-        public void ONclick_bttX(object sender, RoutedEventArgs e)
+        public void DoubleClick_bttX(object sender, RoutedEventArgs e)
         {
             AppStuff.RemoveFunctionItem(this);
             e.Handled = true;
