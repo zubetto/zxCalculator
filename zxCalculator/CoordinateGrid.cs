@@ -782,7 +782,6 @@ namespace zxCalculator
             outputCanvas.SizeChanged += CanvasSizeChanged;
             outputCanvas.MouseWheel += MouseWheel;
             outputCanvas.MouseLeftButtonDown += MLBdown;
-            outputCanvas.MouseLeftButtonUp += MLBup;
             outputCanvas.MouseMove += ON_MouseOver;
 
             outputCanvas.MouseEnter -= SetHandlers;
@@ -1106,6 +1105,7 @@ namespace zxCalculator
             outputCanvas.CaptureMouse();
 
             outputCanvas.MouseLeftButtonDown -= MLBdown;
+            outputCanvas.MouseLeftButtonUp += MLBup;
 
             outputCanvas.MouseMove -= ON_MouseOver;
             outputCanvas.MouseMove += MLBholdMove;
@@ -1113,16 +1113,14 @@ namespace zxCalculator
 
         private void MLBup(object sender, MouseButtonEventArgs e)
         {
-            if (outputCanvas.IsMouseCaptured)
-            {
-                outputCanvas.ReleaseMouseCapture();
-                outputCanvas.Cursor = Cursors.Cross;
+            outputCanvas.ReleaseMouseCapture();
+            outputCanvas.Cursor = Cursors.Cross;
 
-                outputCanvas.MouseLeftButtonDown += MLBdown;
+            outputCanvas.MouseLeftButtonDown += MLBdown;
+            outputCanvas.MouseLeftButtonUp -= MLBup;
 
-                outputCanvas.MouseMove -= MLBholdMove;
-                outputCanvas.MouseMove += ON_MouseOver;
-            }
+            outputCanvas.MouseMove -= MLBholdMove;
+            outputCanvas.MouseMove += ON_MouseOver;
         }
 
         private void UpdateMarker()
