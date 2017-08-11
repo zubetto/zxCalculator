@@ -15,6 +15,7 @@ using System.Windows.Controls.Primitives;
 using System.IO;
 using System.Security;
 using System.Security.Permissions;
+using ColorTools;
 
 namespace zxCalculator
 {
@@ -73,9 +74,12 @@ namespace zxCalculator
         public static Style bttActive;
         public static Style bttDefault;
         public static Style txtboxActive;
+        public static Style bttSinwave;
 
         public static SolidColorBrush ActiveCyan;
         public static SolidColorBrush ForeGrey;
+        public static SolidColorBrush InactiveBack;
+        public static DrawingBrush CheckerBrush;
 
         private static int SNum = 0;
         public static int SerialNumber { get { return SNum++; } } // is used to prevent repeated changing of the arguments labels by the same function
@@ -204,7 +208,6 @@ namespace zxCalculator
         {
             if (argsItems[ind].tgbttAddRange.IsChecked == true)
             {
-                isRangeAct = true;
                 argInd = ind;
 
                 for (int i = 0; i < ind; i++) // remove range items before ...
@@ -224,6 +227,8 @@ namespace zxCalculator
                         argsItems[i].AddRangeClick(new object(), new RoutedEventArgs());
                     }
                 }
+
+                isRangeAct = true;
             }
             else
             {
@@ -378,7 +383,7 @@ namespace zxCalculator
             {
                 if (funcItems[i] == null)
                 {
-                    item.Index = i;
+                    item.Index = i; // not just setting of the index here, Go To Defenition
                     funcItems[i] = item;
                     stackFunctions.Children.Insert(funcItemsAdded, item.funcPanel);
                     funcItemsAdded++;
@@ -437,12 +442,77 @@ namespace zxCalculator
             ArgumentChanged(0, index, false);
         }
 
-        // --- test stuff ----------------------------------------------------
-        public static int testidx = 0;
-        public static int Idx { get { return testidx++; } }
+        public static void PlotterEditorHandler(object sender, CoordinateGrid.GraphEditorEventArgs e)
+        {
+            switch (e.ChangedValue)
+            {
+                case CoordinateGrid.GraphEditorSettings.Color:
+                    funcItems[e.EditedIndex].SinwaveSetColor(e.SettedColor);
+                    break;
 
-        public static TextBox textBoxArgs;
-        public static TextBox textBoxFunc;
+                case CoordinateGrid.GraphEditorSettings.Dashes:
+                    funcItems[e.EditedIndex].SinwaveSetDashArray(e.SettedDashArray);
+                    break;
+
+                case CoordinateGrid.GraphEditorSettings.Thickness:
+                    funcItems[e.EditedIndex].SinwaveSetThickness(e.SettedThickness);
+                    break;
+
+                case CoordinateGrid.GraphEditorSettings.IsActive:
+                    bool iniNewCalc = e.IsActive && !funcItems[e.EditedIndex].PlottingActive;
+
+                    funcItems[e.EditedIndex].PlottingActive = e.IsActive;
+
+                    if (iniNewCalc) funcItems[e.EditedIndex].ONclick_bttFunc(argChanged: false, rangeChanged: true);
+                    break;
+            }
+        }
+
+        public static int SegmentIndex = -1;
+        public static int StepIndex = -1;
+
+        public static void PlotterMouseMoveHandler(object sender, CoordinateGrid.MouseMoveEventArgs e)
+        {
+            // reset indexes
+            SegmentIndex = -1;
+            StepIndex = -1;
+
+            double x = (e.MousePointUV.X - e.XYtoUV.OffsetX) / e.XYtoUV.M11;
+            
+            if (x < argArrLimA)
+            {
+                StepIndex = 0;
+                x = argArrLimA;
+            }
+            else if (x > argArrLimB)
+            {
+                StepIndex = (int)Math.Round((x - argArrLimA) / argArrStep);
+                x = argArrLimB;
+            }
+            else
+            {
+                StepIndex = (int)Math.Round((x - argArrLimA) / argArrStep);
+                x = argArrLimA + StepIndex * argArrStep;
+            }
+            
+            for (int i = 0; i < funcItems.Length; i++)
+            {
+                if (funcItems[i] != null && funcItems[i].GetFunctionValue(ref e.FunctionsYvalues[i], StepIndex, SegmentIndex))
+                {
+                    e.MarkersVisibility[i] = Visibility.Visible;
+                }
+                else e.MarkersVisibility[i] = Visibility.Collapsed;
+            }
+
+            e.MarkerPointXY.X = x;
+        }
+
+        //// --- test stuff ----------------------------------------------------
+        //public static int testidx = 0;
+        //public static int Idx { get { return testidx++; } }
+
+        //public static TextBox textBoxArgs;
+        //public static TextBox textBoxFunc;
     } // end of public static class AppStuff /////////////////////////////////////////////////////////////////////////////////
 
     public class ArgumentStuff
@@ -596,7 +666,7 @@ namespace zxCalculator
         {
             if (e.Key == Key.Enter)
             {
-                TextBox txtBox = e.Source as TextBox;
+                TextBox txtBox = e.OriginalSource as TextBox;
 
                 if (txtBox != null)
                 {
@@ -744,7 +814,7 @@ namespace zxCalculator
 
                 argPanel.Children.Insert(2, rangeSpinners); // isert after tgbttAddRange
                 argPanel.Children.Insert(3, rangeLabel);
-
+                
                 AppStuff.RangeChanged();
             }
             else // REMOVE range-items
@@ -834,12 +904,18 @@ namespace zxCalculator
             }
         }
 
+        public readonly bool forceSerialCalc;
+
         public readonly Function Cfunc; // custom function loaded from dll
         public readonly TextBox outputTextBox;
         public readonly Button funcBtt;
         public readonly Button Xbtt;
         public readonly Button strokeBtt;
         public readonly DockPanel funcPanel;
+
+        private string unitName;
+        private string[] argUnitsNames;
+        public string[] ArgUnitsNames { get { return argUnitsNames; } }
 
         private delegate void UIupdater(object o);
         public readonly Interrupter InterruptControl = new Interrupter();
@@ -850,7 +926,36 @@ namespace zxCalculator
         private int segmentsCompleted = 0;
         private SWShapes.Rectangle progressBar;
         private LinearGradientBrush progressBarBrush;
+
+        private SWShapes.Path sinwavePath;
+        private double sinwaveThickness = 2;
+
+        public double SinwaveThickness { get { return sinwaveThickness; } }
+        public Color SinwaveColor { get { return (sinwavePath.Stroke as SolidColorBrush).Color; } }
+        public DoubleCollection SinwaveDashArray { get { return sinwavePath.StrokeDashArray; } }
         
+        public void SinwaveSetDashArray(DoubleCollection dashes) { sinwavePath.StrokeDashArray = dashes; }
+        public void SinwaveSetThickness(double thick) { sinwaveThickness = thick; }
+        public void SinwaveSetColor(Color color)
+        {
+            if (!ArrInProgress)
+            {
+                (sinwavePath.Stroke as SolidColorBrush).Color = color;
+
+                if (color.A == 0)
+                {
+                    strokeBtt.Background = AppStuff.InactiveBack;
+                    strokeBtt.BorderBrush = AppStuff.ForeGrey;
+                }
+                else
+                {
+                    strokeBtt.Background = null;
+                    strokeBtt.BorderBrush = null;
+                }
+            }
+            
+        }
+
         public readonly int argsNum = 1;
         public readonly int BYTE_SIZE;
 
@@ -895,12 +1000,19 @@ namespace zxCalculator
             progressBar.Fill = progressBarBrush;
         }
 
+        private void Loaded_strokeBtt(object state, RoutedEventArgs e)
+        {
+            sinwavePath = strokeBtt.Template.FindName("Sinwave", strokeBtt) as SWShapes.Path;
+        }
+        
         public FunctionStuff(ICalculate funcData)
         {
             SerialNumber = AppStuff.SerialNumber;
 
             // Custom function from dll
             Cfunc = funcData.Calculate;
+
+            forceSerialCalc = funcData.ForceSerialCalc;
 
             if (funcData.argsNum > 1) argsNum = funcData.argsNum;
             args = new double[argsNum];
@@ -909,6 +1021,8 @@ namespace zxCalculator
             label = funcData.Label;
             description = funcData.Description;
             argsLabels = funcData.ArgLabels;
+            unitName = funcData.UnitName;
+            argUnitsNames = funcData.ArgUnitsNames;
 
             int num = argsLabels.Length;
             for (int i = 0; i < num; i++)
@@ -958,7 +1072,11 @@ namespace zxCalculator
             strokeBtt.Width = 25;
             strokeBtt.Height = 25;
             strokeBtt.Margin = new Thickness(0, 0, 2, 0);
-            strokeBtt.Content = "--";
+            strokeBtt.Style = AppStuff.bttSinwave;
+            strokeBtt.Foreground = new SolidColorBrush(AppStuff.Plotter.CurrentColor);
+            //(strokeBtt.Foreground as SolidColorBrush).Color = AppStuff.Plotter.CurrentColor;
+            strokeBtt.Loaded += Loaded_strokeBtt;
+            strokeBtt.Click += Click_strokeBtt;
 
             // <<<<<<< Adding controls to the funcPanel >>>>>>>
             funcPanel.Children.Add(strokeBtt);
@@ -971,6 +1089,11 @@ namespace zxCalculator
             DockPanel.SetDock(funcBtt, Dock.Right);
         }
 
+        private void Click_strokeBtt(object state, RoutedEventArgs e)
+        {
+            AppStuff.Plotter.IniGraphEditor(itemIndex, SinwaveColor, SinwaveDashArray, SinwaveThickness, AppStuff.PlotterEditorHandler);
+        }
+
         private void ExceptionDuringSegment(object info)
         {
             AppStuff.MarkWorkEnd();
@@ -981,6 +1104,7 @@ namespace zxCalculator
 
                 funcBtt.IsEnabled = true;
                 outputTextBox.IsEnabled = true;
+                strokeBtt.IsEnabled = true;
 
                 int index = (int)info;
                 AnalysisData segData = SegmentsData[index];
@@ -989,6 +1113,47 @@ namespace zxCalculator
 
                 MessageBox.Show(segData.ExceptionsStrig, mbTitle, MessageBoxButton.OK, MessageBoxImage.Exclamation);
             }
+        }
+
+        public bool GetFunctionValue(ref double Fvalue, int stepNum, int segmInd = -1)
+        {
+            if (ArrInProgress || !PlottingActive || !AutoUpdate || SegmentsData == null) return false; // >>>>>>>>> >>>>>>>>>
+
+            if (segmInd > -1)
+            {
+                Fvalue = outputSegments[segmInd][stepNum];
+            }
+            else if (stepNum == 0)
+            {
+                Fvalue = outputSegments[0][0];
+
+                AppStuff.SegmentIndex = 0;
+                AppStuff.StepIndex = 0;
+            }
+            else // find both indexs
+            {
+                segmInd = stepNum / SegmentsData[0].SegmentLength;
+
+                if (segmInd > 0) stepNum = stepNum % (segmInd * SegmentsData[0].SegmentLength);
+
+                int endex = outputSegments.Length - 1;
+
+                if (segmInd > endex)
+                {
+                    segmInd = endex;
+                    stepNum = outputSegments[endex].Length - 1;
+                }
+                else if (segmInd == endex && stepNum >= outputSegments[endex].Length) stepNum = outputSegments[endex].Length - 1;
+
+                AppStuff.SegmentIndex = segmInd;
+                AppStuff.StepIndex = stepNum;
+
+                Fvalue = outputSegments[segmInd][stepNum];
+            }
+
+            outputTextBox.Text = Fvalue.ToString();
+
+            return true;
         }
 
         private void MarkSegmentCompletion(object info)
@@ -1073,6 +1238,8 @@ namespace zxCalculator
                 AppStuff.MarkWorkEnd();
                 funcBtt.IsEnabled = true;
                 outputTextBox.IsEnabled = true;
+                strokeBtt.IsEnabled = true;
+                AppStuff.Plotter.SwitchGraphEditor(true);
             }
         }
 
@@ -1162,10 +1329,25 @@ namespace zxCalculator
             funcMin = double.PositiveInfinity;
             funcMax = double.NegativeInfinity;
 
-            int segLength = AppStuff.ArgArrDosage;
-            int segNum = (int)(AppStuff.ArgArrayLength / segLength);
-            int addLength = (int)(AppStuff.ArgArrayLength % segLength);
-            int prevNum = -1;
+            int segLength;
+            int segNum;
+            int addLength;
+            int prevNum;
+
+            if (forceSerialCalc) // then calculate entire array in one thread
+            {
+                segLength = 0;
+                segNum = 0;
+                addLength = (int)AppStuff.ArgArrayLength;
+                prevNum = -1;
+            }
+            else // divide array into segments for parallel calculations
+            {
+                segLength = AppStuff.ArgArrDosage;
+                segNum = (int)(AppStuff.ArgArrayLength / segLength);
+                addLength = (int)(AppStuff.ArgArrayLength % segLength);
+                prevNum = -1;
+            }
 
             if (segNum > 0 && addLength < 0.1 * segLength)
             {
@@ -1230,7 +1412,7 @@ namespace zxCalculator
             // Disabling UI items
             funcBtt.IsEnabled = false;
             outputTextBox.IsEnabled = false;
-             
+
             exceptionFlag = false;
             exceptionStr = "";
 
@@ -1252,9 +1434,14 @@ namespace zxCalculator
             // START Array Calculation
             if (PlottingActive && AppStuff.IsRangeActive && AppStuff.ArgIndex < argsNum)
             {
+                // Set units
+                AppStuff.Plotter.YunitsName = unitName;
+                if (argUnitsNames != null) AppStuff.Plotter.XunitsName = argUnitsNames[AppStuff.ArgIndex];
+                else AppStuff.Plotter.XunitsName = "";
+
                 // Disabling UI items
-                funcBtt.IsEnabled = false;
-                outputTextBox.IsEnabled = false;
+                strokeBtt.IsEnabled = false;
+                AppStuff.Plotter.SwitchGraphEditor(false);
 
                 IniCalcArray();
             }
@@ -1296,6 +1483,8 @@ namespace zxCalculator
                 // Disabling UI items
                 funcBtt.IsEnabled = false;
                 outputTextBox.IsEnabled = false;
+                strokeBtt.IsEnabled = false;
+                AppStuff.Plotter.SwitchGraphEditor(false);
 
                 IniCalcArray();
             }
@@ -1382,8 +1571,6 @@ namespace zxCalculator
 
             AppStuff.PasteIOdata();
             
-            AppStuff.textBoxArgs = windowMain.FindName("txtboxInput") as TextBox;
-            AppStuff.textBoxFunc = windowMain.FindName("txtboxOutput") as TextBox;
             AppStuff.stackFunctions = windowMain.FindName("stackFunctions") as StackPanel;
             AppStuff.stackArguments = windowMain.FindName("stackArguments") as StackPanel;
             AppStuff.bttAddFunction = windowMain.FindName("bttAddFunction") as Button;
@@ -1395,9 +1582,12 @@ namespace zxCalculator
             AppStuff.bttActive = TryFindResource("ButtonActive") as Style;
             AppStuff.bttDefault = TryFindResource(typeof(Button)) as Style;
             AppStuff.txtboxActive = TryFindResource("ActiveDial") as Style;
+            AppStuff.bttSinwave = TryFindResource("GSButtonStyle") as Style;
 
             AppStuff.ActiveCyan = TryFindResource("SolidColor_ActiveCyan") as SolidColorBrush;
             AppStuff.ForeGrey = TryFindResource("SolidColor_ForeGrey") as SolidColorBrush;
+            AppStuff.InactiveBack = TryFindResource("DisabledBackgroundBrush") as SolidColorBrush;
+            AppStuff.CheckerBrush = TryFindResource("CheckerBackground") as DrawingBrush;
 
             AppStuff.bttRemoveArgument.IsEnabled = false;
 
@@ -1405,222 +1595,224 @@ namespace zxCalculator
 
             Canvas plotCanvas = windowMain.FindName("MainCanvas") as Canvas;
             AppStuff.Plotter = new CoordinateGrid(plotCanvas, AppStuff.FunctionsNumber);
+            AppStuff.Plotter.MouseMove += AppStuff.PlotterMouseMoveHandler;
             AppStuff.Plotter.FitIn();//fitSize:new Size(plotCanvas.ActualHeight, plotCanvas.ActualHeight);
-            //AppStuff.Plotter.AddGraph(0, 5);
 
-            // --- TEST STUFF ---------------------------------------------------------------------------------------
-            TextBox digidial = windowMain.FindName("txtboxOutput") as TextBox;
-            if (digidial != null)
-            {
-                digidial.Text = String.Format("{0}", 1024 * (AppStuff.testidx + 1));
-            }
-            Rect r = new Rect();
-            bool rE = r.IsEmpty;
-            myCanvas = windowMain.FindName("MainCanvas") as Canvas;
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+
+            //// --- TEST STUFF ---------------------------------------------------------------------------------------
+            //TextBox digidial = windowMain.FindName("txtboxOutput") as TextBox;
+            //if (digidial != null)
+            //{
+            //    digidial.Text = String.Format("{0}", 1024 * (AppStuff.testidx + 1));
+            //}
+            //Rect r = new Rect();
+            //bool rE = r.IsEmpty;
+            //myCanvas = windowMain.FindName("MainCanvas") as Canvas;
             
-            TranslateTransform newTranslate = new TranslateTransform(0, 10);
+            //TranslateTransform newTranslate = new TranslateTransform(0, 10);
 
-            ScaleTransform newScaling = new ScaleTransform(0.2, 0.2, 100, 100);
+            //ScaleTransform newScaling = new ScaleTransform(0.2, 0.2, 100, 100);
 
-            myMxTransform = new MatrixTransform(myMatrix);
+            //myMxTransform = new MatrixTransform(myMatrix);
 
-            SWShapes.Path myGrid = new SWShapes.Path();
-            myGrid.Stroke = Brushes.Coral;
-            myGrid.StrokeThickness = 0.5;
+            //SWShapes.Path myGrid = new SWShapes.Path();
+            //myGrid.Stroke = Brushes.Coral;
+            //myGrid.StrokeThickness = 0.5;
 
-            LineInd = 1;
-            indLeft = 0;
-            indRight = LineInd;
-            testGridLines = new PathFigure[LineInd + 1];
-            posLeft = 100;
-            posRight = 140;
-            testGridLines[0] = new PathFigure(new Point(posLeft, 0), new LineSegment[1] { new LineSegment(new Point(posLeft, 800), true) }, false);
-            testGridLines[1] = new PathFigure(new Point(posRight, 0), new LineSegment[1] { new LineSegment(new Point(posRight, 800), true) }, false);
+            //LineInd = 1;
+            //indLeft = 0;
+            //indRight = LineInd;
+            //testGridLines = new PathFigure[LineInd + 1];
+            //posLeft = 100;
+            //posRight = 140;
+            //testGridLines[0] = new PathFigure(new Point(posLeft, 0), new LineSegment[1] { new LineSegment(new Point(posLeft, 800), true) }, false);
+            //testGridLines[1] = new PathFigure(new Point(posRight, 0), new LineSegment[1] { new LineSegment(new Point(posRight, 800), true) }, false);
 
-            testGrid = new PathGeometry(testGridLines);
-            myGrid.Data = testGrid;
-            Canvas.SetZIndex(myGrid, -100);
+            //testGrid = new PathGeometry(testGridLines);
+            //myGrid.Data = testGrid;
+            //Canvas.SetZIndex(myGrid, -100);
 
-            //PathFigureCollection myPF = testGrid.Figures;
-            //myPF[1] = new PathFigure(new Point(200, 0), new LineSegment[1] { new LineSegment(new Point(200, 800), true) }, false);
+            ////PathFigureCollection myPF = testGrid.Figures;
+            ////myPF[1] = new PathFigure(new Point(200, 0), new LineSegment[1] { new LineSegment(new Point(200, 800), true) }, false);
 
-            SWShapes.Path myPath = new SWShapes.Path();
-            myPath.Stroke = testBrush;
-            myPath.StrokeThickness = 2;
+            //SWShapes.Path myPath = new SWShapes.Path();
+            //myPath.Stroke = testBrush;
+            //myPath.StrokeThickness = 2;
             
-            double ArgX = 0;
-            double omega = (1.0/64)*Math.PI;
-            double amp = 50;
+            //double ArgX = 0;
+            //double omega = (1.0/64)*Math.PI;
+            //double amp = 50;
 
-            for (int i = 0; i < 400; i++)
-            {
-                PointsArr[i] = new Point(ArgX, amp * Math.Sin(omega * ArgX));
-                ArgX += 0.5;
-            }
+            //for (int i = 0; i < 400; i++)
+            //{
+            //    PointsArr[i] = new Point(ArgX, amp * Math.Sin(omega * ArgX));
+            //    ArgX += 0.5;
+            //}
 
-            PolyLineSegment FuncSegments = new PolyLineSegment(PointsArr, true);
-            PathFigure myPathFigure = new PathFigure(new Point(0, 0), new PathSegment[1] { FuncSegments }, false);
-            myPathFigure.IsFilled = false;
+            //PolyLineSegment FuncSegments = new PolyLineSegment(PointsArr, true);
+            //PathFigure myPathFigure = new PathFigure(new Point(0, 0), new PathSegment[1] { FuncSegments }, false);
+            //myPathFigure.IsFilled = false;
 
-            myPathGeom = new PathGeometry(new PathFigure[1] { myPathFigure } );
-            myPath.Data = myPathGeom;
-            myMxTransform.Matrix = myMatrix;
-            myPathGeom.Transform = myMxTransform;
+            //myPathGeom = new PathGeometry(new PathFigure[1] { myPathFigure } );
+            //myPath.Data = myPathGeom;
+            //myMxTransform.Matrix = myMatrix;
+            //myPathGeom.Transform = myMxTransform;
 
-            myLabel = new Label();
-            myLabel.Foreground = Brushes.AliceBlue;
-            myLabel.Content = "0.0";
-            Canvas.SetLeft(myLabel, 50);
-            Canvas.SetTop(myLabel, 30);
+            //myLabel = new Label();
+            //myLabel.Foreground = Brushes.AliceBlue;
+            //myLabel.Content = "0.0";
+            //Canvas.SetLeft(myLabel, 50);
+            //Canvas.SetTop(myLabel, 30);
 
-            myLabelII = new Label();
-            myLabelII.Foreground = Brushes.Chartreuse;
-            myLabelII.Content = String.Format("{0}x{1}", SystemParameters.PrimaryScreenWidth, SystemParameters.PrimaryScreenHeight);
-            Canvas.SetLeft(myLabelII, 50);
-            Canvas.SetTop(myLabelII, 42);
+            //myLabelII = new Label();
+            //myLabelII.Foreground = Brushes.Chartreuse;
+            //myLabelII.Content = String.Format("{0}x{1}", SystemParameters.PrimaryScreenWidth, SystemParameters.PrimaryScreenHeight);
+            //Canvas.SetLeft(myLabelII, 50);
+            //Canvas.SetTop(myLabelII, 42);
 
-            myLabelUV = new Label();
-            myLabelUV.Foreground = Brushes.Bisque;
-            myLabelUV.Content = "UV:";
-            Canvas.SetLeft(myLabelUV, 210);
-            Canvas.SetTop(myLabelUV, 30);
+            //myLabelUV = new Label();
+            //myLabelUV.Foreground = Brushes.Bisque;
+            //myLabelUV.Content = "UV:";
+            //Canvas.SetLeft(myLabelUV, 210);
+            //Canvas.SetTop(myLabelUV, 30);
 
-            myLabelXY = new Label();
-            myLabelXY.Foreground = Brushes.Bisque;
-            myLabelXY.Content = "XY:";
-            Canvas.SetLeft(myLabelXY, 210);
-            Canvas.SetTop(myLabelXY, 42);
+            //myLabelXY = new Label();
+            //myLabelXY.Foreground = Brushes.Bisque;
+            //myLabelXY.Content = "XY:";
+            //Canvas.SetLeft(myLabelXY, 210);
+            //Canvas.SetTop(myLabelXY, 42);
 
-            //myLabelUShift = new Label();
-            //myLabelUShift.Foreground = Brushes.Fuchsia;
-            //myLabelUShift.Content = "0";
-            //Canvas.SetLeft(myLabelUShift, 50);
-            //Canvas.SetTop(myLabelUShift, 120);
-            //myCanvas.Children.Add(myLabelUShift);
+            ////myLabelUShift = new Label();
+            ////myLabelUShift.Foreground = Brushes.Fuchsia;
+            ////myLabelUShift.Content = "0";
+            ////Canvas.SetLeft(myLabelUShift, 50);
+            ////Canvas.SetTop(myLabelUShift, 120);
+            ////myCanvas.Children.Add(myLabelUShift);
 
-            //myCanvas.Children.Add(myPath);
-            //myCanvas.Children.Add(myGrid);
-            //myCanvas.Children.Add(myLabel);
-            //myCanvas.Children.Add(myLabelII);
-            //myCanvas.Children.Add(myLabelUV);
-            //myCanvas.Children.Add(myLabelXY);
+            ////myCanvas.Children.Add(myPath);
+            ////myCanvas.Children.Add(myGrid);
+            ////myCanvas.Children.Add(myLabel);
+            ////myCanvas.Children.Add(myLabelII);
+            ////myCanvas.Children.Add(myLabelUV);
+            ////myCanvas.Children.Add(myLabelXY);
 
-            myCanvas.MouseWheel += MouseWheel_Canvas;
-            myCanvas.MouseLeftButtonDown += MLBdown_Canvas;
-            windowMain.PreviewMouseMove += MouseMove_Global;
-            windowMain.PreviewMouseLeftButtonUp += MLBup;
+            //myCanvas.MouseWheel += MouseWheel_Canvas;
+            //myCanvas.MouseLeftButtonDown += MLBdown_Canvas;
+            //windowMain.PreviewMouseMove += MouseMove_Global;
+            //windowMain.PreviewMouseLeftButtonUp += MLBup;
 
             //myLabel.LayoutTransform = newScaling;
         }
 
-        // --- TEST STUFF ----------------------------
-        PathGeometry testGrid = null;
-        PathFigure[] testGridLines;
-        PathGeometry myPathGeom = null;
-        Point[] PointsArr = new Point[400];
-        MatrixTransform myMxTransform;
-        Matrix myMatrix = new Matrix(1, 0, 0, -1, 0, 100);
-        Matrix gridMatrix = new Matrix(1, 0, 0, 1, 0, 0);
-        Point MouseIniPoint = new Point();
-        Canvas myCanvas = null;
-        Label myLabel = null;
-        Label myLabelII = null;
-        SolidColorBrush testBrush = new SolidColorBrush(Color.FromArgb(255, 170, 170, 170));
-        public Label myLabelXY = null;
-        public Label myLabelUV = null;
-        public Label myLabelUShift = null;
-        bool MLBdownAtCanvas = false;
-        double Zooming = 1;
-        double Xoffset = 0;
-        double posLeft, posRight;
-        int LineInd, indLeft = 0, indRight = 1;
+        //// --- TEST STUFF ----------------------------
+        //PathGeometry testGrid = null;
+        //PathFigure[] testGridLines;
+        //PathGeometry myPathGeom = null;
+        //Point[] PointsArr = new Point[400];
+        //MatrixTransform myMxTransform;
+        //Matrix myMatrix = new Matrix(1, 0, 0, -1, 0, 100);
+        //Matrix gridMatrix = new Matrix(1, 0, 0, 1, 0, 0);
+        //Point MouseIniPoint = new Point();
+        //Canvas myCanvas = null;
+        //Label myLabel = null;
+        //Label myLabelII = null;
+        //SolidColorBrush testBrush = new SolidColorBrush(Color.FromArgb(255, 170, 170, 170));
+        //public Label myLabelXY = null;
+        //public Label myLabelUV = null;
+        //public Label myLabelUShift = null;
+        //bool MLBdownAtCanvas = false;
+        //double Zooming = 1;
+        //double Xoffset = 0;
+        //double posLeft, posRight;
+        //int LineInd, indLeft = 0, indRight = 1;
 
-        void MLBdown_Canvas(object sender, MouseButtonEventArgs e)
-        {
-            MLBdownAtCanvas = true;
-            MouseIniPoint = e.GetPosition(myCanvas);
+        //void MLBdown_Canvas(object sender, MouseButtonEventArgs e)
+        //{
+        //    MLBdownAtCanvas = true;
+        //    MouseIniPoint = e.GetPosition(myCanvas);
 
-            App myApp = Application.Current as App;
-            myApp.MainWindow.CaptureMouse();
-        }
+        //    App myApp = Application.Current as App;
+        //    myApp.MainWindow.CaptureMouse();
+        //}
 
-        void MLBup(object sender, MouseButtonEventArgs e)
-        {
-            MLBdownAtCanvas = false;
+        //void MLBup(object sender, MouseButtonEventArgs e)
+        //{
+        //    MLBdownAtCanvas = false;
 
-            App myApp = Application.Current as App;
-            myApp.MainWindow.ReleaseMouseCapture();
-        }
+        //    App myApp = Application.Current as App;
+        //    myApp.MainWindow.ReleaseMouseCapture();
+        //}
 
-        void MouseMove_Global(object sender, MouseEventArgs e)
-        {
-            if (MLBdownAtCanvas)
-            {
-                Point currPoint = e.GetPosition(myCanvas);
-                double dx = currPoint.X - MouseIniPoint.X;
-                double dy = currPoint.Y - MouseIniPoint.Y;
+        //void MouseMove_Global(object sender, MouseEventArgs e)
+        //{
+        //    if (MLBdownAtCanvas)
+        //    {
+        //        Point currPoint = e.GetPosition(myCanvas);
+        //        double dx = currPoint.X - MouseIniPoint.X;
+        //        double dy = currPoint.Y - MouseIniPoint.Y;
                 
-                myMatrix.OffsetX += dx;
-                myMatrix.OffsetY += dy;
+        //        myMatrix.OffsetX += dx;
+        //        myMatrix.OffsetY += dy;
 
-                myMxTransform.Matrix = myMatrix;
-                //myPathGeom.Transform = new MatrixTransform(myMatrix);
+        //        myMxTransform.Matrix = myMatrix;
+        //        //myPathGeom.Transform = new MatrixTransform(myMatrix);
 
-                Xoffset += dx;
-                gridMatrix.OffsetX += dx;
-                testGrid.Transform = new MatrixTransform(gridMatrix);
+        //        Xoffset += dx;
+        //        gridMatrix.OffsetX += dx;
+        //        testGrid.Transform = new MatrixTransform(gridMatrix);
 
-                if (Xoffset > 40)
-                {
-                    posLeft -= 40;
-                    posRight -= 40;
+        //        if (Xoffset > 40)
+        //        {
+        //            posLeft -= 40;
+        //            posRight -= 40;
 
-                    testGrid.Figures[indRight] = new PathFigure(new Point(posLeft, 0), new LineSegment[1] { new LineSegment(new Point(posLeft, 800), true) }, false);
+        //            testGrid.Figures[indRight] = new PathFigure(new Point(posLeft, 0), new LineSegment[1] { new LineSegment(new Point(posLeft, 800), true) }, false);
 
-                    if (--indLeft < 0) indLeft = LineInd;
-                    if (--indRight < 0) indRight = LineInd;
+        //            if (--indLeft < 0) indLeft = LineInd;
+        //            if (--indRight < 0) indRight = LineInd;
 
-                    Xoffset = 0;
-                }
-                else if (Xoffset < -40)
-                {
-                    posLeft += 40;
-                    posRight += 40;
+        //            Xoffset = 0;
+        //        }
+        //        else if (Xoffset < -40)
+        //        {
+        //            posLeft += 40;
+        //            posRight += 40;
 
-                    testGrid.Figures[indLeft] = new PathFigure(new Point(posRight, 0), new LineSegment[1] { new LineSegment(new Point(posRight, 800), true) }, false);
+        //            testGrid.Figures[indLeft] = new PathFigure(new Point(posRight, 0), new LineSegment[1] { new LineSegment(new Point(posRight, 800), true) }, false);
 
-                    if (++indLeft > LineInd) indLeft = 0;
-                    if (++indRight > LineInd) indRight = 0;
+        //            if (++indLeft > LineInd) indLeft = 0;
+        //            if (++indRight > LineInd) indRight = 0;
 
-                    Xoffset = 0;
-                }
+        //            Xoffset = 0;
+        //        }
 
-                myLabel.Content = String.Format("{0:F2},{1:F2}", dx, dy);
-                //myLabelII.Content = String.Format("{0}", currPoint);
+        //        myLabel.Content = String.Format("{0:F2},{1:F2}", dx, dy);
+        //        //myLabelII.Content = String.Format("{0}", currPoint);
 
-                MouseIniPoint = currPoint;
-            }
-        }
+        //        MouseIniPoint = currPoint;
+        //    }
+        //}
 
-        void MouseWheel_Canvas(object sender, MouseWheelEventArgs e)
-        {
-            double zoomCoeff = Math.Pow(2, 0.125);
-            int steps = e.Delta / 120;
-            double zooming = Math.Pow(zoomCoeff, steps);
+        //void MouseWheel_Canvas(object sender, MouseWheelEventArgs e)
+        //{
+        //    double zoomCoeff = Math.Pow(2, 0.125);
+        //    int steps = e.Delta / 120;
+        //    double zooming = Math.Pow(zoomCoeff, steps);
 
-            //if (steps < 0) zooming = -1/zooming;
+        //    //if (steps < 0) zooming = -1/zooming;
 
-            Point zoomOrigin = e.GetPosition(myCanvas);
+        //    Point zoomOrigin = e.GetPosition(myCanvas);
 
-            myMatrix.M11 *= zooming;
-            myMatrix.M22 *= zooming;
-            myMatrix.OffsetX = zooming * (myMatrix.OffsetX - zoomOrigin.X) + zoomOrigin.X;
-            myMatrix.OffsetY = zooming * (myMatrix.OffsetY - zoomOrigin.Y) + zoomOrigin.Y;
+        //    myMatrix.M11 *= zooming;
+        //    myMatrix.M22 *= zooming;
+        //    myMatrix.OffsetX = zooming * (myMatrix.OffsetX - zoomOrigin.X) + zoomOrigin.X;
+        //    myMatrix.OffsetY = zooming * (myMatrix.OffsetY - zoomOrigin.Y) + zoomOrigin.Y;
 
-            myMxTransform.Matrix = myMatrix;
-            //myPathGeom.Transform = new MatrixTransform(myMatrix);
+        //    myMxTransform.Matrix = myMatrix;
+        //    //myPathGeom.Transform = new MatrixTransform(myMatrix);
 
-            myLabelII.Content = String.Format("{0}", myMatrix.M11);
-        }
+        //    myLabelII.Content = String.Format("{0}", myMatrix.M11);
+        //}
     }
 }

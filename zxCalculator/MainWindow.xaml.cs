@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -131,6 +132,14 @@ namespace zxCalculator
         {
             AppStuff.RemoveArgumentItem();
             e.Handled = true;
+        }
+
+        private void bttAutoFit_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleButton tggBtt = e.Source as ToggleButton;
+
+            if (tggBtt.IsChecked == true) AppStuff.Plotter.Autofit = true;
+            else AppStuff.Plotter.Autofit = false;
         }
     }
 }

@@ -65,15 +65,24 @@
                 </StackPanel>
             </ScrollViewer>
         </GroupBox>
-        <Border Margin="5,8.15,0,11.15" Padding="0,0,0,35">
-            <Canvas x:Name="MainCanvas" ClipToBounds="True">
-                <Canvas.Background>
-                    <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
-                        <GradientStop Color="#FF2E2E2E" Offset="1"/>
-                        <GradientStop Color="#FF222225"/>
-                    </LinearGradientBrush>
-                </Canvas.Background>
-            </Canvas>
+        <Border Margin="5,8.15,0,11.15" Padding="0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="291*"/>
+                    <RowDefinition Height="35"/>
+                </Grid.RowDefinitions>
+                <Canvas x:Name="MainCanvas" ClipToBounds="True" Margin="0">
+                    <Canvas.Background>
+                        <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                            <GradientStop Color="#FF2E2E2E" Offset="1"/>
+                            <GradientStop Color="#FF222225"/>
+                        </LinearGradientBrush>
+                    </Canvas.Background>
+                </Canvas>
+                <DockPanel x:Name="dockGridControls" LastChildFill="False" Grid.Row="1">
+                    <ToggleButton x:Name="bttAutoFit" Content="[~]" Margin="0,2,2,0" FontFamily="Prestige Elite Std" FontSize="18" VerticalContentAlignment="Bottom" Padding="1" Foreground="{DynamicResource SolidColor_ForeBlue}" Click="bttAutoFit_Click"/>
+                </DockPanel>
+            </Grid>
         </Border>
         <GridSplitter x:Name="gridSplitterVertical" HorizontalAlignment="Left" Width="5" Grid.Column="1"
                       ResizeBehavior="PreviousAndCurrent" ShowsPreview="True" Margin="0,8,0,11" Background="White" Opacity="0" DragIncrement="2"/>

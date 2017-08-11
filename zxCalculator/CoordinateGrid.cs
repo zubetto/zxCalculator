@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using SWShapes = System.Windows.Shapes;
 using System.Windows.Controls.Primitives;
+using ColorTools;
 
 
 namespace zxCalculator
@@ -192,6 +193,7 @@ namespace zxCalculator
                     double[] Segment;
                     double ku = Mx.M11, kv = Mx.M22;
                     double du = Mx.OffsetX, dv = Mx.OffsetY;
+                    double currValue, preValue = 0;
 
                     // *** Outputting of the points ***
                     for (int i = firstViewInd; i < lastViewInd; i++) // segments loop
@@ -203,8 +205,16 @@ namespace zxCalculator
 
                             while (indA < SegLen) // points loop
                             {
+                                currValue = kv * Segment[indA] + dv;
+                                
+                                if (double.IsNegativeInfinity(currValue)) currValue = double.MinValue;
+                                else if (double.IsPositiveInfinity(currValue)) currValue = double.MaxValue;
+
+                                if (double.IsNaN(currValue)) currValue = preValue;
+                                else preValue = currValue;
+
                                 outputPoints[ptInd].X = ku * X + du;
-                                outputPoints[ptInd].Y = kv * Segment[indA] + dv;
+                                outputPoints[ptInd].Y = currValue;
 
                                 ptInd++;
                                 indA += incr;
@@ -448,6 +458,8 @@ namespace zxCalculator
     /// </summary>
     public class CoordinateGrid
     {
+        private Canvas outputCanvas;
+
         public delegate Point[] Filtering();
 
         public interface IPointsFilter
@@ -457,31 +469,75 @@ namespace zxCalculator
             void Filter(object state); // For multi-thread processing
         }
 
-        public class MouseMoveEventArgs : EventArgs
-        {
-            public readonly Matrix XYtoUV;
-            public readonly Point MousePointUV;
-
-            public bool ShowUline = true;
-            public bool ShowVline = true;
-            public bool ShowMarker = true;
-
-            public Point MarkerPointXY = new Point(double.NegativeInfinity, double.NegativeInfinity);
-
-            public MouseMoveEventArgs(Matrix transitionMatrix, Point mousePoint)
-            {
-                XYtoUV = transitionMatrix;
-                MousePointUV = mousePoint;
-            }
-        }
+        private double[] MarkersYvalues;
+        private Visibility[] MarkersVisibility;
 
         /// <summary>
         /// u = x * XYtoUV.M11 + XYtoUV.OffsetX;     
         /// v = y * XYtoUV.M22 + XYtoUV.OffsetY;
         /// </summary>
+        public class MouseMoveEventArgs : EventArgs
+        {
+            public readonly Matrix XYtoUV;
+            public readonly Point MousePointUV;
+
+            public readonly double[] FunctionsYvalues;
+            public readonly Visibility[] MarkersVisibility;
+
+            public bool ShowUline = true;
+            public bool ShowVline = true;
+
+            public Point MarkerPointXY = new Point(double.NegativeInfinity, double.NegativeInfinity);
+
+            public MouseMoveEventArgs(Matrix transitionMatrix, Point mousePoint, double[] Yarr, Visibility[] Vis)
+            {
+                XYtoUV = transitionMatrix;
+                MousePointUV = mousePoint;
+                FunctionsYvalues = Yarr;
+                MarkersVisibility = Vis;
+            }
+        }
+
+        /// <summary>
+        /// Occurs when mouse is over the output canvas
+        /// Can be used to set marker position
+        /// u = x * XYtoUV.M11 + XYtoUV.OffsetX;     
+        /// v = y * XYtoUV.M22 + XYtoUV.OffsetY;
+        /// </summary>
         public event EventHandler<MouseMoveEventArgs> MouseMove;
         
-        private Canvas outputCanvas;
+        public enum GraphEditorSettings { Color, Dashes, Thickness, IsActive }
+
+        public class GraphEditorEventArgs : EventArgs
+        {
+            public readonly int EditedIndex;
+            public readonly GraphEditorSettings ChangedValue;
+
+            public readonly Color SettedColor;
+            public readonly DoubleCollection SettedDashArray;
+            public readonly double SettedThickness;
+            public readonly bool IsActive;
+
+            public GraphEditorEventArgs(int index, GraphEditorSettings setting, Color color, DoubleCollection dashes, double thick, bool active)
+            {
+                EditedIndex = index;
+                ChangedValue = setting;
+
+                SettedColor = color;
+                SettedDashArray = dashes;
+                SettedThickness = thick;
+                IsActive = active;
+            }
+        }
+
+        /// <summary>
+        /// Occurs whenever any setting is changed through the Graph Editor window
+        /// </summary>
+        public event EventHandler<GraphEditorEventArgs> GraphSettingsChanged;
+
+        private EditStrokeWin GraphEditorWin;
+        private List<DoubleCollection> DashesList;
+        public List<DoubleCollection> DashArrayList { get { return DashesList; } }
 
         public double MaxWidth = SystemParameters.PrimaryScreenWidth;
         public double MaxHeight = SystemParameters.PrimaryScreenHeight;
@@ -505,7 +561,17 @@ namespace zxCalculator
         private double VStepMin = 40;
         private double VStepMax = 120;
 
-        private bool AutoFit = true;
+        private bool AutoFit = false;
+        public bool Autofit
+        {
+            get { return AutoFit; }
+
+            set
+            {
+                AutoFit = value;
+                if (value) FitIn();
+            }
+        }
 
         // when the shift goes beyond [-MaxShift, MaxShift] corresponding outside grid-line is transfered to the opposite side
         private double UShift = 0, VShift = 0;
@@ -537,7 +603,7 @@ namespace zxCalculator
 
         // Graphs and filters
         private SWShapes.Path[] GraphPaths;
-        public SWShapes.Path[] FunctionGraphs { get { return GraphPaths; } }
+        public System.Collections.IEnumerable FunctionGraphs { get { return GraphPaths; } }
         private Filtering[] OutFilters;
 
         // Grid frame, lines, labels
@@ -545,18 +611,17 @@ namespace zxCalculator
         private SWShapes.Path VgridLines = new SWShapes.Path();
         private PathGeometry UgridLinesGeometry;
         private PathGeometry VgridLinesGeometry;
-        public SolidColorBrush GridBrush = new SolidColorBrush(Color.FromArgb(170, 150, 233, 233));
+        public SolidColorBrush GridBrush = new SolidColorBrush(Color.FromArgb(100, 150, 150, 150));
 
         private SWShapes.Path GridMat = new SWShapes.Path();
         private CombinedGeometry GridMatFrame;
         public SolidColorBrush GridMatBrush = new SolidColorBrush(Color.FromArgb(170, 50, 50, 50));
-        public SolidColorBrush GridBorderBrush = new SolidColorBrush(Color.FromArgb(255, 150, 233, 233));
+        public SolidColorBrush GridBorderBrush = new SolidColorBrush(Color.FromArgb(255, 150, 150, 150));
 
         private SWShapes.Path MarkerUline = new SWShapes.Path();
         private SWShapes.Path MarkerVline = new SWShapes.Path();
-        private SWShapes.Ellipse Marker = new SWShapes.Ellipse();
+        private SWShapes.Ellipse[] Markers;
         public SolidColorBrush MarkerLinesBrush = new SolidColorBrush(Color.FromArgb(170, 170, 170, 170));
-        public SolidColorBrush MarkerBrush = new SolidColorBrush(Color.FromArgb(255, 100, 150, 255));
 
         private Canvas UlabelsArea = new Canvas();
         private Canvas VlabelsArea = new Canvas();
@@ -572,10 +637,41 @@ namespace zxCalculator
         public FontFamily UnitsFont = new FontFamily("Cambria Math");
         private double LabelsFontSize = 12;
         private double UnitsFontSize = 14;
-        public SolidColorBrush GridLabelsBrush = new SolidColorBrush(Color.FromArgb(255, 150, 233, 233));
+        public SolidColorBrush GridLabelsBrush = new SolidColorBrush(Color.FromArgb(255, 233, 233, 233));
 
         private string UlabelsFormatSpec = "";
         private string VlabelsFormatSpec = "";
+
+        private string UnitsNameU = "";
+        private string UnitsNameV = "";
+        private bool UsePrefixU = false;
+        private bool UsePrefixV = false;
+
+        public string XunitsName
+        {
+            get { return UnitsNameU; }
+
+            set
+            {
+                UnitsNameU = value;
+
+                if (String.IsNullOrWhiteSpace(value)) UsePrefixU = false;
+                else UsePrefixU = true;
+            }
+        }
+
+        public string YunitsName
+        {
+            get { return UnitsNameV; }
+
+            set
+            {
+                UnitsNameV = value;
+
+                if (String.IsNullOrWhiteSpace(value)) UsePrefixV = false;
+                else UsePrefixV = true;
+            }
+        }
 
         // overall bounds 
         private double BoundsXmin = 0;
@@ -609,12 +705,11 @@ namespace zxCalculator
         private MatrixTransform InnerRectMxTr = new MatrixTransform();
         private TranslateTransform UlabelsTT = new TranslateTransform();
         private TranslateTransform VlabelsTT = new TranslateTransform();
-        private TranslateTransform MarkerTT = new TranslateTransform();
         private TranslateTransform MarkerUlineTT = new TranslateTransform();
         private TranslateTransform MarkerVlineTT = new TranslateTransform();
         
         private Point MouseIniPoint;
-
+        
         public CoordinateGrid(Canvas canvas, int slots, Thickness padding = new Thickness())
         {
             outputCanvas = canvas;
@@ -728,14 +823,11 @@ namespace zxCalculator
             unitsVlabel.Content = "Contents";
 
             // --- marker and marker lines ---------------------
-            Marker.Width = 4;
-            Marker.Height = 4;
-            Marker.Visibility = Visibility.Collapsed;
-            Marker.Fill = MarkerBrush;
-            Marker.RenderTransform = MarkerTT;
-            //Canvas.SetZIndex(Marker, 5);
-            Canvas.SetLeft(Marker, -0.5 * Marker.Width);
-            Canvas.SetTop(Marker, -0.5 * Marker.Height);
+            Markers = new SWShapes.Ellipse[slots];
+            MarkersYvalues = new double[slots];
+            MarkersVisibility = new Visibility[slots];
+
+            for (int i = 0; i < slots; i++) MarkersVisibility[i] = Visibility.Collapsed;
 
             MarkerUline.Data = new PathGeometry(new PathFigure[1] 
                                               { new PathFigure(new Point(0, -MaxHeight), new PathSegment[1] 
@@ -759,10 +851,20 @@ namespace zxCalculator
             Canvas.SetLeft(MarkerVline, 0);
             Canvas.SetTop(MarkerUline, 0);
             Canvas.SetTop(MarkerVline, 0);
-
-            outputCanvas.Children.Add(Marker);
+            
             outputCanvas.Children.Add(MarkerUline);
             outputCanvas.Children.Add(MarkerVline);
+
+            // --- populate the dashes list --------------------
+            DashesList = new List<DoubleCollection>(7);
+
+            DashesList.Add(new DoubleCollection(new double[2] { 1, 0 }));
+            DashesList.Add(new DoubleCollection(new double[2] { 1, 1 }));
+            DashesList.Add(new DoubleCollection(new double[2] { 2, 1 }));
+            DashesList.Add(new DoubleCollection(new double[2] { 4, 2 }));
+            DashesList.Add(new DoubleCollection(new double[4] { 3, 1, 1, 1 }));
+            DashesList.Add(new DoubleCollection(new double[4] { 4, 2, 1, 2 }));
+            DashesList.Add(new DoubleCollection(new double[6] { 4, 1, 1, 1, 1, 1 }));
 
             // --- subscribe on events -------------------------
             // Such a way of subscribing is used due to unexpected behaviour of the mouse event handlers;
@@ -783,8 +885,33 @@ namespace zxCalculator
             outputCanvas.MouseWheel += MouseWheel;
             outputCanvas.MouseLeftButtonDown += MLBdown;
             outputCanvas.MouseMove += ON_MouseOver;
+            outputCanvas.MouseLeave += MouseLeave_Canvas;
 
             outputCanvas.MouseEnter -= SetHandlers;
+        }
+
+        private void AddMarker(int index)
+        {
+            if (GraphPaths[index] != null)
+            {
+                SWShapes.Ellipse newMarker = new SWShapes.Ellipse();
+                Markers[index] = newMarker;
+
+                newMarker.Fill = GraphPaths[index].Stroke;
+                newMarker.Width = 2 * GraphPaths[index].StrokeThickness;
+                newMarker.Height = 2 * GraphPaths[index].StrokeThickness;
+                newMarker.Visibility = Visibility.Collapsed;
+
+                outputCanvas.Children.Add(newMarker);
+            }
+        }
+
+        private void RemoveMarker(int index)
+        {
+            if (Markers[index] != null)
+            {
+                outputCanvas.Children.Remove(Markers[index]);
+            }
         }
 
         public void AddFilter(int index, IPointsFilter filterData)
@@ -808,6 +935,7 @@ namespace zxCalculator
             GraphPaths[index].Data = new PathGeometry();
             GraphPaths[index].Data.Transform = GraphMxTr;
             SetGraph(index); // brushes, thickness, stroke
+            AddMarker(index);
 
             outputCanvas.Children.Add(GraphPaths[index]);
 
@@ -828,6 +956,7 @@ namespace zxCalculator
                 newGraph = new SWShapes.Path();
                 GraphPaths[index] = newGraph;
                 SetGraph(index); // brushes, thickness, stroke
+                AddMarker(index);
 
                 pGeom = new PathGeometry();
                 pFigure = new PathFigure();
@@ -924,21 +1053,20 @@ namespace zxCalculator
             else OutFilters[indGraph]();
         }
 
-        public void HideGraph(int index)
-        {
-            //GraphsAdded--;
-            //isDrawnFlags[index] = false;
-        }
+        public Color[] DefaultColors = new Color[7] { Colors.BlanchedAlmond, Colors.LightSteelBlue, Colors.LightPink, Colors.SteelBlue, Colors.LightCoral,
+                                                      Colors.MediumAquamarine, Colors.PaleGoldenrod};
+        private int defColorInd = 0;
 
-        public void UnhideGraph(int index)
-        {
-            //GraphsAdded++;
-            //isDrawnFlags[index] = true;
-        }
+        public Color CurrentColor { get { return DefaultColors[defColorInd]; } }
 
         public void SetGraph(int index) // set stroke, brush
         {
-            GraphPaths[index].Stroke = Brushes.BlanchedAlmond;
+            SolidColorBrush graphBrush = new SolidColorBrush();
+            graphBrush.Color = DefaultColors[defColorInd];
+
+            if (++defColorInd >= DefaultColors.Length) defColorInd = 0;
+
+            GraphPaths[index].Stroke = graphBrush;
             GraphPaths[index].StrokeThickness = 2;
         }
 
@@ -948,8 +1076,210 @@ namespace zxCalculator
             GraphPaths[index] = null;
             OutFilters[index] = null;
             RemoveBounds(index);
+            RemoveMarker(index);
 
             if (BoundsAdded > 0 && AutoFit) FitIn();
+        }
+        
+        private int EditedIndex;
+
+        public void SwitchGraphEditor(bool switchON)
+        {
+            if (GraphEditorWin != null && GraphEditorWin.IsVisible) GraphEditorWin.RootGrid.IsEnabled = switchON;
+        }
+
+        public void IniGraphEditor(int index, Color iniColor, DoubleCollection iniDashes, double iniThickness, EventHandler<GraphEditorEventArgs> settingsHandler = null)
+        {
+            EditedIndex = index;
+
+            if (GraphEditorWin == null || !GraphEditorWin.IsVisible)
+            {
+                GraphEditorWin = new EditStrokeWin();
+
+                GraphEditorWin.combobxDashes.ItemsSource = DashesList;
+
+                GraphEditorWin.ColorControl.ColorChanged += SetGraphColor;
+                GraphEditorWin.combobxDashes.SelectionChanged += SetGraphDashes;
+
+                GraphEditorWin.txtBoxThickness.LostKeyboardFocus += SetGraphThickness_lostKeyFocus;
+                GraphEditorWin.txtBoxThickness.KeyDown += SetGraphThickness_keyEnter;
+                GraphEditorWin.txtBoxThickness.AddHandler(Button.ClickEvent, new RoutedEventHandler(SetGraphThickness_spinners));
+
+                GraphEditorWin.chbxIsActive.Checked += SetGraphVisibility;
+                GraphEditorWin.chbxIsActive.Unchecked += SetGraphVisibility;
+
+                GraphSettingsChanged += settingsHandler;
+
+                GraphEditorWin.Show();
+            }
+            else GraphEditorWin.Activate();
+            
+            GraphEditorWin.ColorControl.InitialColorBrush.Color = iniColor;
+            GraphEditorWin.ColorControl.SelectedColorBrush.Color = iniColor;
+
+            if (iniDashes == null || iniDashes.Count == 0) GraphEditorWin.combobxDashes.SelectedIndex = -1;
+            else GraphEditorWin.combobxDashes.SelectedItem = iniDashes;
+
+            GraphEditorWin.txtBoxThickness.Text = iniThickness.ToString("g2");
+            GraphEditorWin.chbxIsActive.IsChecked = (iniColor.A != 0);
+        }
+        
+        private bool isDrivenByColor = false;
+        private void SetGraphColor(object sender, ColorControlPanel.ColorChangedEventArgs e)
+        {
+            if (GraphPaths[EditedIndex] != null) (GraphPaths[EditedIndex].Stroke as SolidColorBrush).Color = e.CurrentColor;
+
+            GraphEditorEventArgs GEe = new GraphEditorEventArgs(EditedIndex, GraphEditorSettings.Color, e.CurrentColor, GraphEditorWin.SelectedDashes,
+                                                                GraphEditorWin.SettedThickness, GraphEditorWin.IsGraphActive);
+            GraphSettingsChanged?.Invoke(this, GEe);
+
+            if (e.PreviousColor.A == 0 && e.CurrentColor.A != 0) // then activate graph
+            {
+                // Allow only invert the state, to prevent possible eternal looping
+                if (GraphEditorWin.chbxIsActive.IsChecked != true)
+                {
+                    isDrivenByColor = true;
+                    GraphEditorWin.chbxIsActive.IsChecked = true;
+                }
+            }
+            else if (e.PreviousColor.A != 0 && e.CurrentColor.A == 0) // then disactivate graph
+            {
+                // Allow only invert the state, to prevent possible eternal looping
+                if (GraphEditorWin.chbxIsActive.IsChecked == true)
+                {
+                    isDrivenByColor = true;
+                    GraphEditorWin.chbxIsActive.IsChecked = false;
+                } 
+            }
+        }
+
+        private void SetGraphDashes(object sender, SelectionChangedEventArgs e)
+        {
+            if (GraphPaths[EditedIndex] != null && GraphEditorWin.combobxDashes.SelectedIndex > -1)
+            {
+                GraphPaths[EditedIndex].StrokeDashArray = DashesList[GraphEditorWin.combobxDashes.SelectedIndex];
+            }
+
+            GraphEditorEventArgs GEe = new GraphEditorEventArgs(EditedIndex, GraphEditorSettings.Dashes, GraphEditorWin.SelectedColor, GraphEditorWin.SelectedDashes,
+                                                                GraphEditorWin.SettedThickness, GraphEditorWin.IsGraphActive);
+            GraphSettingsChanged?.Invoke(this, GEe);
+        }
+
+        private void SetGraphThickness_spinners(object sender, RoutedEventArgs e)
+        {
+            RepeatButton rebtt = e.OriginalSource as RepeatButton;
+
+            if (rebtt != null)
+            {
+                double preValue = GraphEditorWin.SettedThickness;
+
+                if (rebtt.Name == "rebttIncrease" && preValue < 10) preValue += 0.1;
+                else if (rebtt.Name == "rebttDecrease" && preValue > 0) preValue -= 0.1;
+
+                preValue = GraphEditorWin.SetThickness(preValue);
+
+                if (GraphPaths[EditedIndex] != null)
+                {
+                    GraphPaths[EditedIndex].StrokeThickness = preValue;
+
+                    Markers[EditedIndex].Width = 2 * preValue;
+                    Markers[EditedIndex].Height = Markers[EditedIndex].Width;
+                } 
+
+                GraphEditorEventArgs GEe = new GraphEditorEventArgs(EditedIndex, GraphEditorSettings.Thickness, GraphEditorWin.SelectedColor, GraphEditorWin.SelectedDashes,
+                                                                    preValue, GraphEditorWin.IsGraphActive);
+                GraphSettingsChanged?.Invoke(this, GEe);
+            }
+            
+            e.Handled = true;
+        }
+        
+        private void SetGraphThickness_keyEnter(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                TextBox txtBox = e.OriginalSource as TextBox;
+
+                if (txtBox != null)
+                {
+                    GraphEditorWin.SetThickness(txtBox.Text);
+
+                    if (GraphPaths[EditedIndex] != null)
+                    {
+                        GraphPaths[EditedIndex].StrokeThickness = GraphEditorWin.SettedThickness;
+
+                        Markers[EditedIndex].Width = 2 * GraphEditorWin.SettedThickness;
+                        Markers[EditedIndex].Height = Markers[EditedIndex].Width;
+                    } 
+
+                    GraphEditorEventArgs GEe = new GraphEditorEventArgs(EditedIndex, GraphEditorSettings.Thickness, GraphEditorWin.SelectedColor, GraphEditorWin.SelectedDashes,
+                                                                        GraphEditorWin.SettedThickness, GraphEditorWin.IsGraphActive);
+                    GraphSettingsChanged?.Invoke(this, GEe);
+
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void SetGraphThickness_lostKeyFocus(object sender, RoutedEventArgs e)
+        {
+            TextBox txtBox = e.OriginalSource as TextBox;
+
+            if (txtBox != null)
+            {
+                GraphEditorWin.SetThickness(txtBox.Text);
+
+                if (GraphPaths[EditedIndex] != null)
+                {
+                    GraphPaths[EditedIndex].StrokeThickness = GraphEditorWin.SettedThickness;
+
+                    Markers[EditedIndex].Width = 2 * GraphEditorWin.SettedThickness;
+                    Markers[EditedIndex].Height = Markers[EditedIndex].Width;
+                }
+
+                GraphEditorEventArgs GEe = new GraphEditorEventArgs(EditedIndex, GraphEditorSettings.Thickness, GraphEditorWin.SelectedColor, GraphEditorWin.SelectedDashes,
+                                                                    GraphEditorWin.SettedThickness, GraphEditorWin.IsGraphActive);
+                GraphSettingsChanged?.Invoke(this, GEe);
+            }
+
+            e.Handled = true;
+        }
+
+        private void SetGraphVisibility(object sender, RoutedEventArgs e)
+        {
+            bool flag = GraphEditorWin.IsGraphActive;
+            Color theColor = GraphEditorWin.SelectedColor;
+
+            if (isDrivenByColor)
+            {
+                isDrivenByColor = false;
+
+                if (!flag)
+                {
+                    RemoveBounds(EditedIndex);
+                    if (AutoFit) FitIn();
+                }
+            } 
+            else // visibility is driven by the check box
+            {
+                if (flag)
+                {
+                    theColor.A = 255;
+                }
+                else
+                {
+                    theColor.A = 0;
+
+                    RemoveBounds(EditedIndex);
+                    if (AutoFit) FitIn();
+                }
+
+                GraphEditorWin.ColorControl.SelectedColorBrush.Color = theColor;
+            }
+            
+            GraphEditorEventArgs GEe = new GraphEditorEventArgs(EditedIndex, GraphEditorSettings.IsActive, GraphEditorWin.SelectedColor, GraphEditorWin.SelectedDashes,
+                                                                GraphEditorWin.SettedThickness, flag);
+            GraphSettingsChanged?.Invoke(this, GEe);
         }
 
         readonly string[] SIprefixes = new string[17] { "y", "z", "a", "f", "p", "n", '\u00B5'.ToString(), "m", "", "k", "M", "G", "T", "P", "E", "Z", "Y" };
@@ -998,7 +1328,7 @@ namespace zxCalculator
 
                 int ind = (int)ordine + 8;
 
-                UnitsLabel = String.Format("x {0} {1}{2}", mStr, SIprefixes[ind], unitName);
+                UnitsLabel = String.Format("* {0} {1}{2}", mStr, SIprefixes[ind], unitName);
 
                 // define required number of digits after the decimal point
                 ordine *= 3;
@@ -1038,7 +1368,7 @@ namespace zxCalculator
                 if (ordine > 0) eStr = "e+" + ordine;
                 else if (ordine < 0) eStr = "e" + ordine;
 
-                if (mStr != "" || eStr != "" || unitName != "") UnitsLabel = String.Format("x {0}{1} {2}", mStr, eStr, unitName);
+                if (mStr != "" || eStr != "" || unitName != "") UnitsLabel = String.Format("* {0}{1} {2}", mStr, eStr, unitName);
 
                 // define required number of digits after the decimal point
                 ordine -= Math.Floor(Math.Log10(multiStep));
@@ -1129,10 +1459,9 @@ namespace zxCalculator
         private void ON_MouseOver(object sender, MouseEventArgs e)
         {
             Point currPoint = e.GetPosition(outputCanvas);
-            double pU = currPoint.X;
-            double pV = currPoint.Y;
+            double pU = currPoint.X, pV;
 
-            MouseMoveEventArgs eArgs = new MouseMoveEventArgs(GraphMatrix, currPoint);
+            MouseMoveEventArgs eArgs = new MouseMoveEventArgs(GraphMatrix, currPoint, MarkersYvalues, MarkersVisibility);
 
             MouseMove?.Invoke(this, eArgs);
 
@@ -1142,19 +1471,32 @@ namespace zxCalculator
                 pU = GraphMatrix.M11 * eArgs.MarkerPointXY.X + GraphMatrix.OffsetX;
             }
 
+            SWShapes.Ellipse marker;
+
+            for (int i = 0; i < Markers.Length; i++)
+            {
+                marker = Markers[i];
+
+                if (marker != null)
+                {
+                    marker.Visibility = eArgs.MarkersVisibility[i];
+
+                    if (marker.IsVisible)
+                    {
+                        pV = GraphMatrix.M22 * MarkersYvalues[i] + GraphMatrix.OffsetY;
+
+                        Canvas.SetLeft(marker, pU - 0.5 * marker.ActualWidth);
+                        Canvas.SetTop(marker, pV - 0.5 * marker.ActualHeight);
+                    }
+                    
+                }
+            }
+
             if (!double.IsNegativeInfinity(eArgs.MarkerPointXY.Y))
             {
                 pV = GraphMatrix.M22 * eArgs.MarkerPointXY.Y + GraphMatrix.OffsetY;
             }
-
-            if (eArgs.ShowMarker)
-            {
-                if (!Marker.IsVisible) Marker.Visibility = Visibility.Visible;
-                
-                MarkerTT.X = pU;
-                MarkerTT.Y = pV;
-            }
-            else if (Marker.IsVisible) Marker.Visibility = Visibility.Collapsed;
+            else pV = currPoint.Y;
 
             if (eArgs.ShowUline)
             {
@@ -1173,19 +1515,73 @@ namespace zxCalculator
                 MarkerVlineTT.Y = pV;
             }
             else if (MarkerVline.IsVisible) MarkerVline.Visibility = Visibility.Collapsed;
+        }
 
-            // Update the graphs geometry due to pixels erasing issue at large zoom-in
-            //outputCanvas.Dispatcher.Invoke(UpdateMarker);
-            //foreach (Filtering F in OutFilters) F?.Invoke();
+        private void ON_MouseOver(Point currPoint)
+        {
+            double pU = currPoint.X, pV;
 
-            // TESTs ------------------------------------
-            //App myApp = Application.Current as App;
-            //myApp.myLabelUV.Content = String.Format("UV: {0,5:n1} | {1,5:n1}", currPoint.X, currPoint.Y);
+            MouseMoveEventArgs eArgs = new MouseMoveEventArgs(GraphMatrix, currPoint, MarkersYvalues, MarkersVisibility);
 
-            //double x = (currPoint.X - OffsetU) / ratioXtoU;
-            //double y = (currPoint.Y - OffsetV) / ratioYtoV;
+            MouseMove?.Invoke(this, eArgs);
 
-            //myApp.myLabelXY.Content = String.Format("XY: {0,5:n1} | {1,5:n1}", x, y);
+            // Obtain the Marker Point
+            if (!double.IsNegativeInfinity(eArgs.MarkerPointXY.X))
+            {
+                pU = GraphMatrix.M11 * eArgs.MarkerPointXY.X + GraphMatrix.OffsetX;
+            }
+
+            SWShapes.Ellipse marker;
+
+            for (int i = 0; i < Markers.Length; i++)
+            {
+                marker = Markers[i];
+
+                if (marker != null)
+                {
+                    marker.Visibility = eArgs.MarkersVisibility[i];
+
+                    if (marker.IsVisible)
+                    {
+                        pV = GraphMatrix.M22 * MarkersYvalues[i] + GraphMatrix.OffsetY;
+
+                        Canvas.SetLeft(marker, pU - 0.5 * marker.ActualWidth);
+                        Canvas.SetTop(marker, pV - 0.5 * marker.ActualHeight);
+                    }
+
+                }
+            }
+
+            if (!double.IsNegativeInfinity(eArgs.MarkerPointXY.Y))
+            {
+                pV = GraphMatrix.M22 * eArgs.MarkerPointXY.Y + GraphMatrix.OffsetY;
+            }
+            else pV = currPoint.Y;
+
+            if (eArgs.ShowUline)
+            {
+                if (!MarkerUline.IsVisible) MarkerUline.Visibility = Visibility.Visible;
+
+                MarkerUlineTT.X = pU;
+                MarkerUlineTT.Y = pV;
+            }
+            else if (MarkerUline.IsVisible) MarkerUline.Visibility = Visibility.Collapsed;
+
+            if (eArgs.ShowVline)
+            {
+                if (!MarkerVline.IsVisible) MarkerVline.Visibility = Visibility.Visible;
+
+                MarkerVlineTT.X = pU;
+                MarkerVlineTT.Y = pV;
+            }
+            else if (MarkerVline.IsVisible) MarkerVline.Visibility = Visibility.Collapsed;
+        }
+
+        private void MouseLeave_Canvas(object sender, MouseEventArgs e)
+        {
+            foreach (SWShapes.Ellipse marker in Markers) if (marker != null) marker.Visibility = Visibility.Collapsed;
+            MarkerUline.Visibility = Visibility.Collapsed;
+            MarkerVline.Visibility = Visibility.Collapsed;
         }
 
         private void MLBholdMove(object sender, MouseEventArgs e)
@@ -1331,10 +1727,13 @@ namespace zxCalculator
             double pU = currPoint.X;
             double pV = currPoint.Y;
 
-            if (Marker.IsVisible)
+            foreach (SWShapes.Ellipse marker in Markers)
             {
-                MarkerTT.X = pU;
-                MarkerTT.Y = pV;
+                if (marker != null && marker.IsVisible)
+                {
+                    Canvas.SetLeft(marker, Canvas.GetLeft(marker) + du);
+                    Canvas.SetTop(marker, Canvas.GetTop(marker) + dv);
+                }
             }
 
             if (MarkerUline.IsVisible)
@@ -1558,7 +1957,7 @@ namespace zxCalculator
 
                 labelLeft = (Ustart - OffsetU) / ratioXtoU;
 
-                double ordine = Calibrate(XStep, ref labelLeft, out unitsLabel, out UlabelsFormatSpec, XgridBase, unitName: "Zu");
+                double ordine = Calibrate(XStep, ref labelLeft, out unitsLabel, out UlabelsFormatSpec, XgridBase, unitName: UnitsNameU, AddPrefix: UsePrefixU);
 
                 unitsUlabel.Content = unitsLabel;
 
@@ -1654,7 +2053,7 @@ namespace zxCalculator
                 string unitsLabel;
                 labelTop = (Vstart - OffsetV) / ratioYtoV;
 
-                double ordine = Calibrate(YStep, ref labelTop, out unitsLabel, out VlabelsFormatSpec, YgridBase, unitName: "Zu");
+                double ordine = Calibrate(YStep, ref labelTop, out unitsLabel, out VlabelsFormatSpec, YgridBase, unitName: UnitsNameV, AddPrefix: UsePrefixV);
 
                 unitsVlabel.Content = unitsLabel;
                 unitsVlabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -1712,6 +2111,8 @@ namespace zxCalculator
                 VlabelsTT.Y = 0;
                 Canvas.SetTop(VlabelsCells, zooming * (Vo - labelsZo) + labelsZo);
             } // end if (NewVgrid) -------
+
+            ON_MouseOver(zoomOrigin);
         }
 
         private void AddBounds(int index, Rect Bounds)
@@ -1802,7 +2203,7 @@ namespace zxCalculator
             }
         }
 
-        private void RemoveBounds(int index)
+        public void RemoveBounds(int index)
         {
             if (BoundsAdded == 0 || BoundsArr[index].IsEmpty) return; // >>>>> nothing to remove >>>>>
 
@@ -2157,7 +2558,7 @@ namespace zxCalculator
 
             labelLeft = (Ustart - OffsetU) / ratioXtoU;
 
-            ordine = Calibrate(XStep, ref labelLeft, out unitsLabel, out UlabelsFormatSpec, XgridBase, unitName: "Zu");
+            ordine = Calibrate(XStep, ref labelLeft, out unitsLabel, out UlabelsFormatSpec, XgridBase, unitName: UnitsNameU, AddPrefix: UsePrefixU);
 
             unitsUlabel.Content = unitsLabel;
 
@@ -2215,7 +2616,7 @@ namespace zxCalculator
             // V-grid calibration
             labelTop = (Vstart - OffsetV) / ratioYtoV;
 
-            ordine = Calibrate(YStep, ref labelTop, out unitsLabel, out VlabelsFormatSpec, YgridBase, unitName: "Zu");
+            ordine = Calibrate(YStep, ref labelTop, out unitsLabel, out VlabelsFormatSpec, YgridBase, unitName: UnitsNameV, AddPrefix: UsePrefixV);
 
             unitsVlabel.Content = unitsLabel;
             unitsVlabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));

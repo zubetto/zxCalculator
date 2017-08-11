@@ -64,6 +64,9 @@
     <SignManifests>false</SignManifests>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ColorTools">
+      <HintPath>C:\Users\Zubetto85\Documents\Visual Studio 2015\Projects\ColorTools\ColorTools\bin\Release\ColorTools.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
@@ -92,6 +95,10 @@
       <SubType>Designer</SubType>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Page Include="EditStrokeWin.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -101,6 +108,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="CoordinateGrid.cs" />
+    <Compile Include="EditStrokeWin.xaml.cs">
+      <DependentUpon>EditStrokeWin.xaml</DependentUpon>
+    </Compile>
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
