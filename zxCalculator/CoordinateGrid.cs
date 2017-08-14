@@ -561,18 +561,9 @@ namespace zxCalculator
         private double VStepMin = 40;
         private double VStepMax = 120;
 
-        private bool AutoFit = false;
-        public bool Autofit
-        {
-            get { return AutoFit; }
-
-            set
-            {
-                AutoFit = value;
-                if (value) FitIn();
-            }
-        }
-
+        public enum FitinModes { WH, W, H, Off, Update }
+        public FitinModes AutoFit = FitinModes.Off;
+        
         // when the shift goes beyond [-MaxShift, MaxShift] corresponding outside grid-line is transfered to the opposite side
         private double UShift = 0, VShift = 0;
         private double ULeft, URight, VTop, VBottom;
@@ -709,7 +700,11 @@ namespace zxCalculator
         private TranslateTransform MarkerVlineTT = new TranslateTransform();
         
         private Point MouseIniPoint;
-        
+
+        private SWShapes.Path RectZoomPath;
+        private RectangleGeometry RectZoomGeometry;
+        public SolidColorBrush RectZoomBrush = new SolidColorBrush(Color.FromRgb(33, 150, 255));
+
         public CoordinateGrid(Canvas canvas, int slots, Thickness padding = new Thickness())
         {
             outputCanvas = canvas;
@@ -854,6 +849,18 @@ namespace zxCalculator
             
             outputCanvas.Children.Add(MarkerUline);
             outputCanvas.Children.Add(MarkerVline);
+
+            // --- Zooming rectangle ---------------------------
+            RectZoomPath = new SWShapes.Path();
+            RectZoomGeometry = new RectangleGeometry();
+            RectZoomPath.Data = RectZoomGeometry;
+            Color fillColor = (RectZoomBrush as SolidColorBrush).Color;
+            fillColor.A = 33;
+            RectZoomPath.Stroke = RectZoomBrush;
+            RectZoomPath.Fill = new SolidColorBrush(fillColor);
+            RectZoomPath.Visibility = Visibility.Collapsed;
+
+            outputCanvas.Children.Add(RectZoomPath);
 
             // --- populate the dashes list --------------------
             DashesList = new List<DoubleCollection>(7);
@@ -1007,7 +1014,7 @@ namespace zxCalculator
 
                 AddBounds(index, Bounds);
 
-                if (AutoFit) FitIn();
+                FitIn(AutoFit);
             } // end if (SegmentsPoints == null)
         }
 
@@ -1038,7 +1045,7 @@ namespace zxCalculator
             
             AddBounds(indGraph, Bounds);
 
-            if (AutoFit) FitIn();
+            FitIn(AutoFit);
         }
 
         public void AddSegment(int indGraph, Rect Bounds, bool first = false)
@@ -1049,8 +1056,7 @@ namespace zxCalculator
 
             if (!Bounds.IsEmpty) AddBounds(indGraph, Bounds);
 
-            if (AutoFit) FitIn(); // filters will be called within FitIn method
-            else OutFilters[indGraph]();
+            if (!FitIn(AutoFit)) OutFilters[indGraph](); // if FitIn returns true then filters are called within FitIn method
         }
 
         public Color[] DefaultColors = new Color[7] { Colors.BlanchedAlmond, Colors.LightSteelBlue, Colors.LightPink, Colors.SteelBlue, Colors.LightCoral,
@@ -1078,7 +1084,7 @@ namespace zxCalculator
             RemoveBounds(index);
             RemoveMarker(index);
 
-            if (BoundsAdded > 0 && AutoFit) FitIn();
+            if (BoundsAdded > 0) FitIn(AutoFit);
         }
         
         private int EditedIndex;
@@ -1257,7 +1263,7 @@ namespace zxCalculator
                 if (!flag)
                 {
                     RemoveBounds(EditedIndex);
-                    if (AutoFit) FitIn();
+                    FitIn(AutoFit);
                 }
             } 
             else // visibility is driven by the check box
@@ -1271,7 +1277,7 @@ namespace zxCalculator
                     theColor.A = 0;
 
                     RemoveBounds(EditedIndex);
-                    if (AutoFit) FitIn();
+                    FitIn(AutoFit);
                 }
 
                 GraphEditorWin.ColorControl.SelectedColorBrush.Color = theColor;
@@ -1422,9 +1428,105 @@ namespace zxCalculator
             VlabelsArea.Height = e.NewSize.Height - topIndent - bottomIndent + LabelsFontSize;
             Canvas.SetTop(unitsVlabel, 0.5 * (VlabelsArea.Height - unitsVlabel.Height));
 
-            if (BoundsAdded > 0 && AutoFit) FitIn();
+            if (BoundsAdded > 0) FitIn(AutoFit);
         }
         
+        public Rect ConvertRectUVtoXY(Rect rectUV)
+        {
+            double Xtl = (rectUV.X - GraphMatrix.OffsetX) / ratioXtoU;
+            double Ytl = (rectUV.Y - GraphMatrix.OffsetY) / ratioYtoV;
+
+            double Xwidth = rectUV.Width / ratioXtoU;
+            double Yheight = rectUV.Height / ratioYtoV;
+
+            return new Rect(new Point(Xtl, Ytl), new Vector(Xwidth, Yheight));
+        }
+
+        public event EventHandler RectZoomingComplete;
+        private bool RectZoomFlag = false;
+
+        public void RectZoomSwitch(bool turnON)
+        {
+            if (turnON)
+            {
+                outputCanvas.MouseLeftButtonDown -= MLBdown;
+                outputCanvas.MouseMove -= ON_MouseOver;
+                outputCanvas.MouseLeave -= MouseLeave_Canvas;
+
+                outputCanvas.MouseLeftButtonDown += RectZoom_MLBdown;
+
+                outputCanvas.Cursor = Cursors.SizeNWSE;
+            }
+            else // turnOFF
+            {
+                if (outputCanvas.IsMouseCaptured) outputCanvas.ReleaseMouseCapture();
+                if (RectZoomPath.IsVisible) RectZoomPath.Visibility = Visibility.Collapsed;
+
+                outputCanvas.MouseLeftButtonDown -= RectZoom_MLBdown;
+                outputCanvas.MouseLeftButtonUp -= RectZoom_MLBup;
+                outputCanvas.MouseMove -= RectZoom_MLBholdMove;
+
+                outputCanvas.MouseLeftButtonDown += MLBdown;
+                outputCanvas.MouseMove += ON_MouseOver;
+                outputCanvas.MouseLeave += MouseLeave_Canvas;
+
+                outputCanvas.Cursor = Cursors.Cross;
+
+                RectZoomingComplete?.Invoke(this, EventArgs.Empty);
+            }
+
+            RectZoomFlag = turnON;
+        }
+
+        private void RectZoom_MLBdown(object sender, MouseButtonEventArgs e)
+        {
+            MouseIniPoint = e.GetPosition(outputCanvas);
+
+            RectZoomGeometry.Rect = new Rect(MouseIniPoint, MouseIniPoint);
+            RectZoomPath.Visibility = Visibility.Visible;
+
+            outputCanvas.CaptureMouse();
+
+            outputCanvas.MouseLeftButtonDown -= RectZoom_MLBdown;
+            outputCanvas.MouseLeftButtonUp += RectZoom_MLBup;
+
+            outputCanvas.MouseMove += RectZoom_MLBholdMove;
+        }
+
+        private void RectZoom_MLBup(object sender, MouseButtonEventArgs e)
+        {
+            outputCanvas.MouseMove -= RectZoom_MLBholdMove;
+            outputCanvas.MouseLeftButtonUp -= RectZoom_MLBup;
+
+            outputCanvas.ReleaseMouseCapture();
+
+            RectZoomPath.Visibility = Visibility.Collapsed;
+
+            if (RectZoomGeometry.Rect.Width > 10 && RectZoomGeometry.Rect.Height > 10) // then perform zooming
+            {
+                RectZoomSwitch(false);
+
+                FitIn(Bounds: ConvertRectUVtoXY(RectZoomGeometry.Rect));
+            }
+            else // give user another chance
+            {
+                outputCanvas.MouseLeftButtonDown += RectZoom_MLBdown;
+            }
+        }
+
+        private void RectZoom_MLBholdMove(object sender, MouseEventArgs e)
+        {
+            Point currPoint = e.GetPosition(outputCanvas);
+
+            if (currPoint.X < 0) currPoint.X = 0;
+            else if (currPoint.X > outputCanvas.ActualWidth) currPoint.X = outputCanvas.ActualWidth;
+
+            if (currPoint.Y < 0) currPoint.Y = 0;
+            else if (currPoint.Y > outputCanvas.ActualHeight) currPoint.Y = outputCanvas.ActualHeight;
+
+            RectZoomGeometry.Rect = new Rect(MouseIniPoint, currPoint);
+        }
+
         private void MLBdown(object sender, MouseButtonEventArgs e)
         {
             MouseIniPoint = e.GetPosition(outputCanvas);
@@ -1450,12 +1552,7 @@ namespace zxCalculator
             outputCanvas.MouseMove -= MLBholdMove;
             outputCanvas.MouseMove += ON_MouseOver;
         }
-
-        private void UpdateMarker()
-        {
-            
-        }
-
+        
         private void ON_MouseOver(object sender, MouseEventArgs e)
         {
             Point currPoint = e.GetPosition(outputCanvas);
@@ -2112,7 +2209,7 @@ namespace zxCalculator
                 Canvas.SetTop(VlabelsCells, zooming * (Vo - labelsZo) + labelsZo);
             } // end if (NewVgrid) -------
 
-            ON_MouseOver(zoomOrigin);
+            if (!RectZoomFlag) ON_MouseOver(zoomOrigin);
         }
 
         private void AddBounds(int index, Rect Bounds)
@@ -2367,9 +2464,49 @@ namespace zxCalculator
             readyFlags[index] = true;
         }
 
+        public bool FitIn(FitinModes mode)
+        {
+            switch (mode)
+            {
+                case FitinModes.WH:
+                    FitIn();
+                    return true;
+
+                case FitinModes.W:
+                    double V = outputCanvas.ActualHeight - bottomIndent;
+                    double Y = (V - OffsetV) / ratioYtoV;
+                    double H = (topIndent - V) / ratioYtoV; // ratioYtoV is less than zero
+
+                    FitIn(Bounds: new Rect(0, Y, 0, H));
+                    return true;
+
+                case FitinModes.H:
+                    double X = (leftIndent - OffsetU) / ratioXtoU;
+                    double W = (outputCanvas.ActualWidth - leftIndent - rightIndent) / ratioXtoU;
+
+                    FitIn(Bounds: new Rect(X, 0, W, 0));
+                    return true;
+
+                case FitinModes.Update:
+                    double x = (leftIndent - OffsetU) / ratioXtoU;
+                    double w = (outputCanvas.ActualWidth - leftIndent - rightIndent) / ratioXtoU;
+
+                    double v = outputCanvas.ActualHeight - bottomIndent;
+                    double y = (v - OffsetV) / ratioYtoV;
+                    double h = (topIndent - v) / ratioYtoV;
+
+                    FitIn(Bounds: new Rect(x, y, w, h));
+                    return true;
+
+                default: return false; // >>>>>>> OFF >>>>>>>
+            }
+        }
+
         /// <summary>
-        /// 
+        /// Performs fit-in of a geometry specified by the Bounds to the output area specified by the fitSize
         /// </summary>
+        /// <param name="Bounds">Geometry bounds defined in the x,y-space</param>
+        /// <param name="fitSize">The frame into which you want to fit, defined in u,v-space</param>
         public void FitIn(Rect Bounds = new Rect(), Size fitSize = new Size())
         {
             // ------- Defining of the fit transform --------------------------------------------------------------------------------------

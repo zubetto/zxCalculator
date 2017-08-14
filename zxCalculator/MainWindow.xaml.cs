@@ -138,8 +138,71 @@ namespace zxCalculator
         {
             ToggleButton tggBtt = e.Source as ToggleButton;
 
-            if (tggBtt.IsChecked == true) AppStuff.Plotter.Autofit = true;
-            else AppStuff.Plotter.Autofit = false;
+            if (tggBtt.IsChecked == true)
+            {
+                bttAutoFitW.IsChecked = false;
+                bttAutoFitH.IsChecked = false;
+
+                AppStuff.Plotter.AutoFit = CoordinateGrid.FitinModes.WH;
+                AppStuff.Plotter.FitIn(CoordinateGrid.FitinModes.WH);
+            } 
+            else AppStuff.Plotter.AutoFit = CoordinateGrid.FitinModes.Off;
+        }
+
+        private void bttAutoFitW_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleButton tggBtt = e.Source as ToggleButton;
+
+            if (tggBtt.IsChecked == true)
+            {
+                bttAutoFit.IsChecked = false;
+                bttAutoFitH.IsChecked = false;
+
+                AppStuff.Plotter.AutoFit = CoordinateGrid.FitinModes.W;
+                AppStuff.Plotter.FitIn(CoordinateGrid.FitinModes.W);
+            }
+            else AppStuff.Plotter.AutoFit = CoordinateGrid.FitinModes.Off;
+        }
+
+        private void bttAutoFitH_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleButton tggBtt = e.Source as ToggleButton;
+
+            if (tggBtt.IsChecked == true)
+            {
+                bttAutoFit.IsChecked = false;
+                bttAutoFitW.IsChecked = false;
+
+                AppStuff.Plotter.AutoFit = CoordinateGrid.FitinModes.H;
+                AppStuff.Plotter.FitIn(CoordinateGrid.FitinModes.H);
+            }
+            else AppStuff.Plotter.AutoFit = CoordinateGrid.FitinModes.Off;
+        }
+
+        private void bttSquareGrid_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleButton tggBtt = e.Source as ToggleButton;
+
+            if (tggBtt.IsChecked == true)
+            {
+                AppStuff.Plotter.SquareGrid = true;
+
+                if (!AppStuff.Plotter.FitIn(AppStuff.Plotter.AutoFit)) AppStuff.Plotter.FitIn(CoordinateGrid.FitinModes.Update);
+            }
+            else AppStuff.Plotter.SquareGrid = false;
+        }
+
+        private void bttRectZoom_Click(object sender, RoutedEventArgs e)
+        {
+            if (bttRectZoom.IsChecked == true)
+            {
+                AppStuff.Plotter.RectZoomSwitch(true);
+                AppStuff.Plotter.RectZoomingComplete += delegate (Object o, EventArgs ec) { bttRectZoom.IsChecked = false; };
+            }
+            else
+            {
+                AppStuff.Plotter.RectZoomSwitch(false);
+            }
         }
     }
 }

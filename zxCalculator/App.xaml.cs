@@ -75,10 +75,13 @@ namespace zxCalculator
         public static Style bttDefault;
         public static Style txtboxActive;
         public static Style bttSinwave;
+        public static Style bttXstyle;
 
         public static SolidColorBrush ActiveCyan;
         public static SolidColorBrush ForeGrey;
         public static SolidColorBrush InactiveBack;
+        public static SolidColorBrush BackBtt;
+        public static SolidColorBrush BackTxt;
         public static DrawingBrush CheckerBrush;
 
         private static int SNum = 0;
@@ -473,6 +476,8 @@ namespace zxCalculator
 
         public static void PlotterMouseMoveHandler(object sender, CoordinateGrid.MouseMoveEventArgs e)
         {
+            if (!isRangeAct) return; // >>>>>>>>> >>>>>>>>>
+
             // reset indexes
             SegmentIndex = -1;
             StepIndex = -1;
@@ -929,9 +934,18 @@ namespace zxCalculator
 
         private SWShapes.Path sinwavePath;
         private double sinwaveThickness = 2;
+        private Color tmpColor;
+        private bool useTmpColor;
 
         public double SinwaveThickness { get { return sinwaveThickness; } }
-        public Color SinwaveColor { get { return (sinwavePath.Stroke as SolidColorBrush).Color; } }
+        public Color SinwaveColor
+        {
+            get
+            {
+                if (useTmpColor) return tmpColor;
+                else return (sinwavePath.Stroke as SolidColorBrush).Color;
+            }
+        }
         public DoubleCollection SinwaveDashArray { get { return sinwavePath.StrokeDashArray; } }
         
         public void SinwaveSetDashArray(DoubleCollection dashes) { sinwavePath.StrokeDashArray = dashes; }
@@ -940,17 +954,26 @@ namespace zxCalculator
         {
             if (!ArrInProgress)
             {
-                (sinwavePath.Stroke as SolidColorBrush).Color = color;
-
                 if (color.A == 0)
                 {
-                    strokeBtt.Background = AppStuff.InactiveBack;
-                    strokeBtt.BorderBrush = AppStuff.ForeGrey;
+                    tmpColor = color;
+                    useTmpColor = true;
+
+                    (sinwavePath.Stroke as SolidColorBrush).Color = AppStuff.BackTxt.Color;
+
+                    strokeBtt.Background = AppStuff.BackBtt;
+                }
+                else if (useTmpColor)
+                {
+                    useTmpColor = false;
+
+                    (sinwavePath.Stroke as SolidColorBrush).Color = tmpColor;
+
+                    strokeBtt.Background = null;
                 }
                 else
                 {
-                    strokeBtt.Background = null;
-                    strokeBtt.BorderBrush = null;
+                    (sinwavePath.Stroke as SolidColorBrush).Color = color;
                 }
             }
             
@@ -1061,10 +1084,13 @@ namespace zxCalculator
             Xbtt = new Button();
             Xbtt.Width = 25;
             Xbtt.Height = 25;
+            Xbtt.Style = AppStuff.bttXstyle;
+            Xbtt.Focusable = false;
             Xbtt.Margin = new Thickness(2, 0, 0, 0);
             Xbtt.FontFamily = new FontFamily("Marlett");
             Xbtt.FontSize = 14;
             Xbtt.Content = "r";
+            Xbtt.ToolTip = "Mouse double-click to remove the item";
             Xbtt.MouseDoubleClick += DoubleClick_bttX;
 
             // <<<<<<< strokeBtt >>>>>>>
@@ -1583,10 +1609,13 @@ namespace zxCalculator
             AppStuff.bttDefault = TryFindResource(typeof(Button)) as Style;
             AppStuff.txtboxActive = TryFindResource("ActiveDial") as Style;
             AppStuff.bttSinwave = TryFindResource("GSButtonStyle") as Style;
+            AppStuff.bttXstyle = TryFindResource("XbttStyle") as Style;
 
             AppStuff.ActiveCyan = TryFindResource("SolidColor_ActiveCyan") as SolidColorBrush;
             AppStuff.ForeGrey = TryFindResource("SolidColor_ForeGrey") as SolidColorBrush;
             AppStuff.InactiveBack = TryFindResource("DisabledBackgroundBrush") as SolidColorBrush;
+            AppStuff.BackBtt = TryFindResource("SolidColor_Background") as SolidColorBrush;
+            AppStuff.BackTxt = TryFindResource("SolidColor_TextBoxBack") as SolidColorBrush; ;
             AppStuff.CheckerBrush = TryFindResource("CheckerBackground") as DrawingBrush;
 
             AppStuff.bttRemoveArgument.IsEnabled = false;

@@ -24,7 +24,7 @@
             <ColumnDefinition Width="130*" MinWidth="362"/>
         </Grid.ColumnDefinitions>
         <GroupBox x:Name="grpboxFunctions" Grid.Column="1" Header="Functions" Margin="5,0,5,10" Foreground="#FF767676" BorderBrush="#FF767676" d:LayoutOverrides="LeftMargin, RightMargin, TopMargin, BottomMargin" SnapsToDevicePixels="True" Padding="0,2,0,0">
-            <ScrollViewer x:Name="scrollFunctions" VerticalScrollBarVisibility="Auto" Style="{DynamicResource SimpleScrollViewer}" CanContentScroll="True">
+            <ScrollViewer x:Name="scrollFunctions" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
                 <StackPanel x:Name="stackFunctions">
                     <Button x:Name="bttAddFunction" Content="Add Function" VerticalAlignment="Top" Height="25" Margin="0,0,0,2"
                             Click="ONclick_bttAddFunction"/>
@@ -43,7 +43,7 @@
             </ScrollViewer>
         </GroupBox>
         <GroupBox x:Name="grpboxArgs" Grid.ColumnSpan="2" Header="Arguments" Margin="5,-10,4.6,5" BorderBrush="#FF767676" Foreground="#FF767676" Grid.Row="1">
-            <ScrollViewer x:Name="scrollArguments" VerticalScrollBarVisibility="Auto" Style="{DynamicResource SimpleScrollViewer}" Margin="0,0,0,-1.986" CanContentScroll="True">
+            <ScrollViewer x:Name="scrollArguments" VerticalScrollBarVisibility="Auto" Margin="0,0,0,-1.986" CanContentScroll="True">
                 <StackPanel x:Name="stackArguments">
                     <!--DockPanel x:Name="dockArguments" Height="25" LastChildFill="True" Margin="0,2,0,0">
                         <Label x:Name="labelboxArgLabel"
@@ -57,8 +57,8 @@
                                 LostKeyboardFocus="LostKeyFocus_TESTargInput" KeyDown="KeyDown_TESTargInput"/>
                     </-->
                     <DockPanel Height="25" Margin="0,2,0,0" LastChildFill="True">
-                        <Button x:Name="bttRemoveArgument" Click="bttRemoveArgument_Click" Content="r" Margin="1,0,56,0" BorderThickness="1" Grid.Column="1"
-                                DockPanel.Dock="Right" HorizontalAlignment="Right" Width="25" FontFamily="Marlett" FontSize="14"/>
+                        <Button x:Name="bttRemoveArgument" Click="bttRemoveArgument_Click" Content="r" Margin="1,0,56,0" BorderThickness="1" Grid.Column="1" Focusable="False"
+                                DockPanel.Dock="Right" HorizontalAlignment="Right" Width="25" FontFamily="Marlett" FontSize="14" Style="{StaticResource XbttStyle}"/>
                         <Button x:Name="bttAddArgument" Click="bttAddArgument_Click"  Content="Add Argument" Margin="50,0,1,0" BorderThickness="1" Grid.Column="0"/>
                     </DockPanel>
 
@@ -80,7 +80,54 @@
                     </Canvas.Background>
                 </Canvas>
                 <DockPanel x:Name="dockGridControls" LastChildFill="False" Grid.Row="1">
-                    <ToggleButton x:Name="bttAutoFit" Content="[~]" Margin="0,2,2,0" FontFamily="Prestige Elite Std" FontSize="18" VerticalContentAlignment="Bottom" Padding="1" Foreground="{DynamicResource SolidColor_ForeBlue}" Click="bttAutoFit_Click"/>
+                    <ToggleButton x:Name="bttAutoFit" Margin="0,2,2,0" VerticalContentAlignment="Center" Foreground="{DynamicResource SolidColor_ForeBlue}" Click="bttAutoFit_Click" Width="{Binding ActualHeight, Mode=OneWay, RelativeSource={RelativeSource Self}}" Style="{DynamicResource ToggleButtonS2}" Background="{x:Null}" BorderBrush="{x:Null}" HorizontalContentAlignment="Center" Padding="0">
+                        <Canvas Width="27.52" Height="27.52" Background="#00000000" SnapsToDevicePixels="False" Margin="0">
+                            <Path Data="F1 M 1.6,1.6 L 26.08,1.6 26.08,26.08 1.6,26.08 z"  Stroke="{DynamicResource SolidColor_Border}" StrokeThickness="1" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" />
+                            <Path Data="F1 M 0,0 C 0,0 2.08,-10.4 5.28,-11.84 8.32,-13.28 9.6,-8.48 12.64,-9.6 15.68,-10.56 19.2,-19.2 19.2,-19.2" RenderTransform="1,0,0,1,4.16,23.36" Stroke="{DynamicResource SolidColor_ForeGrey}" StrokeThickness="3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Path Data="F1 M 0.96,0.96 L 26.56,0.96"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 0,0 L 27.52,0 27.52,5.92 0,5.92 z"  />
+                            <Path Data="F1 M 0.96,26.56 L 26.56,26.56"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 0,21.76 L 27.52,21.76 27.52,27.52 0,27.52 z"  />
+                            <Path Data="F1 M 0.96,0.96 L 0.96,26.56"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 0,0 L 5.92,0 5.92,27.52 0,27.52 z"  />
+                            <Path Data="F1 M 26.56,0.96 L 26.56,26.56"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 21.76,0 L 27.52,0 27.52,27.52 21.76,27.52 z"  />
+                        </Canvas>
+                    </ToggleButton>
+                    
+                    <ToggleButton x:Name="bttAutoFitW" Margin="0,2,2,0" VerticalContentAlignment="Center" Padding="0" Foreground="{DynamicResource SolidColor_ForeBlue}" Click="bttAutoFitW_Click" Width="{Binding ActualHeight, Mode=OneWay, RelativeSource={RelativeSource Self}}" Style="{DynamicResource ToggleButtonS2}" Background="{x:Null}" BorderBrush="{x:Null}" HorizontalContentAlignment="Center" BorderThickness="1">
+                        <Canvas Width="27.52" Height="27.52" Background="#00000000" SnapsToDevicePixels="False" Margin="0">
+                            <Path Data="F1 M 1.6,1.6 L 26.08,1.6 26.08,26.08 1.6,26.08 z"  Stroke="{DynamicResource SolidColor_Border}" StrokeThickness="1" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" />
+                            <Path Data="F1 M 0,0 C 0,0 2.08,-10.4 5.28,-11.84 8.32,-13.28 9.6,-8.48 12.64,-9.6 15.68,-10.56 19.2,-19.2 19.2,-19.2" RenderTransform="1,0,0,1,4.16,23.36" Stroke="{DynamicResource SolidColor_ForeGrey}" StrokeThickness="3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Path Data="F1 M 0.96,0.96 L 0.96,26.56"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 0,0 L 5.92,0 5.92,27.52 0,27.52 z"  />
+                            <Path Data="F1 M 26.56,0.96 L 26.56,26.56"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 21.76,0 L 27.52,0 27.52,27.52 21.76,27.52 z"  />
+                        </Canvas>
+                    </ToggleButton>
+
+                    <ToggleButton x:Name="bttAutoFitH" Margin="0,2,2,0" VerticalContentAlignment="Center" Padding="0" Foreground="{DynamicResource SolidColor_ForeBlue}" Click="bttAutoFitH_Click" Width="{Binding ActualHeight, Mode=OneWay, RelativeSource={RelativeSource Self}}" Style="{DynamicResource ToggleButtonS2}" Background="{x:Null}" BorderBrush="{x:Null}" HorizontalContentAlignment="Center" BorderThickness="1">
+                        <Canvas Width="27.52" Height="27.52" Background="#00000000" SnapsToDevicePixels="False" Margin="0">
+                            <Path Data="F1 M 1.6,1.6 L 26.08,1.6 26.08,26.08 1.6,26.08 z"  Stroke="{DynamicResource SolidColor_Border}" StrokeThickness="1" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" />
+                            <Path Data="F1 M 0,0 C 0,0 2.08,-10.4 5.28,-11.84 8.32,-13.28 9.6,-8.48 12.64,-9.6 15.68,-10.56 19.2,-19.2 19.2,-19.2" RenderTransform="1,0,0,1,4.16,23.36" Stroke="{DynamicResource SolidColor_ForeGrey}" StrokeThickness="3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Path Data="F1 M 0.96,0.96 L 26.56,0.96"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 0,0 L 27.52,0 27.52,5.92 0,5.92 z"  />
+                            <Path Data="F1 M 0.96,26.56 L 26.56,26.56"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 0,21.76 L 27.52,21.76 27.52,27.52 0,27.52 z"  />
+                        </Canvas>
+                    </ToggleButton>
+
+                    <ToggleButton x:Name="bttSquareGrid" Margin="0,2,2,0" VerticalContentAlignment="Center" Padding="0" Foreground="{DynamicResource SolidColor_ForeBlue}" Click="bttSquareGrid_Click" Width="{Binding ActualHeight, Mode=OneWay, RelativeSource={RelativeSource Self}}" Style="{DynamicResource ToggleButtonS2}" Background="#00000000" BorderBrush="{x:Null}" HorizontalContentAlignment="Center" BorderThickness="1">
+                        <Canvas Margin="0" Width="25.28" Height="25.28">
+                            <Path Data="F1 M 7.36,0 L 7.36,25.6"  Stroke="{DynamicResource SolidColor_Border}" StrokeThickness="0.96" StrokeLineJoin="Miter" StrokeMiterLimit="4" Clip="M 4.8,0 L 10.08,0 10.08,25.28 4.8,25.28 z"  />
+                            <Path Data="F1 M 18.08,0 L 18.08,25.6"  Stroke="{DynamicResource SolidColor_Border}" StrokeThickness="0.96" StrokeLineJoin="Miter" StrokeMiterLimit="4" Clip="M 15.52,0 L 20.8,0 20.8,25.28 15.52,25.28 z"  />
+                            <Path Data="F1 M 0,7.36 L 25.6,7.36"  Stroke="{DynamicResource SolidColor_Border}" StrokeThickness="0.96" StrokeLineJoin="Miter" StrokeMiterLimit="4" Clip="M 0,4.8 L 25.28,4.8 25.28,10.08 0,10.08 z"  />
+                            <Path Data="F1 M 0,18.08 L 25.6,18.08"  Stroke="{DynamicResource SolidColor_Border}" StrokeThickness="0.96" StrokeLineJoin="Miter" StrokeMiterLimit="4" Clip="M 0,15.52 L 25.28,15.52 25.28,20.8 0,20.8 z"  />
+                            <Path Data="F1 M 7.36,7.36 L 18.08,7.36 18.08,18.08 7.36,18.08 z"  Stroke="{DynamicResource SolidColor_ForeBlue}" StrokeThickness="2.08" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Canvas>
+                    </ToggleButton>
+
+                    <ToggleButton x:Name="bttRectZoom" Margin="0,2,2,0" FontFamily="Prestige Elite Std" FontSize="18" VerticalContentAlignment="Center" Padding="0" Foreground="{DynamicResource SolidColor_ForeBlue}" Click="bttRectZoom_Click" HorizontalContentAlignment="Center" Width="{Binding ActualHeight, Mode=OneWay, RelativeSource={RelativeSource Self}}" Style="{DynamicResource ToggleButtonS2}" Background="{x:Null}" BorderBrush="{x:Null}">
+                        <Canvas Width="30" Height="30" Margin="0" SnapsToDevicePixels="False" Background="#00000000">
+                            <Path Data="F1 m 0.96,0.96 L 23.04,0.96 23.04,23.04 0.96,23.04 z"  Stroke="#ff2196ff" StrokeThickness="1.6" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeDashCap="Round" StrokeDashArray="1 2" Fill="#542196FF" />
+                            <Path Data="F1 m 27,27 L 24.48,24.48"  Stroke="{DynamicResource SolidColor_ForeGrey}" StrokeThickness="5.28" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" Clip="M 13.28,13.28 L 31.68,13.28 31.68,31.68 13.28,31.68 z"  />
+                            <Path Data="F1 m 0,0 C 0,3.04 -2.56,5.44 -5.6,5.44 -8.64,5.44 -11.2,3.04 -11.2,0 -11.2,-3.2 -8.64,-5.6 -5.6,-5.6 -2.56,-5.6 0,-3.2 0,0 z" RenderTransform="1,0,0,1,23.52,17.92" Stroke="{DynamicResource SolidColor_ForeGrey}" StrokeThickness="3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Path Data="F1 M 17.92,15.36 L 17.92,20.32"  Stroke="{DynamicResource SolidColor_ForeGrey}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" />
+                            <Path Data="F1 M 20.48,17.92 L 15.52,17.92"  Stroke="{DynamicResource SolidColor_ForeGrey}" StrokeThickness="2" StrokeLineJoin="Miter" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeMiterLimit="4" />
+                        </Canvas>
+                    </ToggleButton>
                 </DockPanel>
             </Grid>
         </Border>
