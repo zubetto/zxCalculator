@@ -254,6 +254,11 @@ namespace zxCalculator
         string Label { get; }
 
         /// <summary>
+        /// It can be empty string
+        /// </summary>
+        string UnitName { get; }
+
+        /// <summary>
         /// Good place for the arguments description
         /// </summary>
         string Description { get; }
@@ -262,6 +267,16 @@ namespace zxCalculator
         /// Up to seven characters should fit in place well
         /// </summary>
         string[] ArgLabels { get; }
+
+        /// <summary>
+        /// It can be null or contains empty strings; in the latter case the array length should be equal argsNum
+        /// </summary>
+        string[] ArgUnitsNames { get; }
+
+        /// <summary>
+        /// If true then array of an argument values will not be divided into segments for parallel calculations
+        /// </summary>
+        bool ForceSerialCalc { get; }
 
         /// <summary>
         /// Calculates custom-function values on a given arguments set.
