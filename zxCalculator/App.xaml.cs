@@ -509,6 +509,7 @@ namespace zxCalculator
                 else e.MarkersVisibility[i] = Visibility.Collapsed;
             }
 
+            argsItems[argInd].inputTextBox.Text = x.ToString();
             e.MarkerPointXY.X = x;
         }
 
