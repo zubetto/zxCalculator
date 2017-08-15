@@ -9,5 +9,7 @@ The class *PointsSampler* implements a filtering method for efficient representa
   
 Next steps are implementation of a calculation interruption (pausing and canceling) and more attractive interface;  
   
+![alt text](/zxCalcGUI.png "GUI")
+![alt text](/zxCalcGUI_02.png "GUI")
 ![alt text](/CoordinateGrid_001.png "CoordinateGrid output example")
 ![alt text](/CoordinateGrid_002.png "CoordinateGrid output example")
