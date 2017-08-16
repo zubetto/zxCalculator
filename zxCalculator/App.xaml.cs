@@ -49,9 +49,9 @@ namespace zxCalculator
         }
 
         public static readonly int FunctionsNumber = 20; // number of available slots for functions items
-        public static readonly int ArgumentsNumber = 10; // number of available slots for arguments items
+        public static readonly int ArgumentsNumber = 20; // number of available slots for arguments items
         public static readonly int BYTE_SIZE = ArgumentsNumber * sizeof(double);
-        public static readonly long ArgArr_LIMIT = 1 + 1000 * 100; // don't set less than two
+        public static readonly long ArgArr_LIMIT = 1 + 1000 * 1000; // don't set less than two
         public static int ArgArrDosage = 1000; // each dose is processed in separate thread
 
         private static int funcItemsAdded = 0;
@@ -491,7 +491,7 @@ namespace zxCalculator
             }
             else if (x > argArrLimB)
             {
-                StepIndex = (int)Math.Round((x - argArrLimA) / argArrStep);
+                StepIndex = (int)Math.Round((argArrLimB - argArrLimA) / argArrStep);
                 x = argArrLimB;
             }
             else
@@ -499,12 +499,21 @@ namespace zxCalculator
                 StepIndex = (int)Math.Round((x - argArrLimA) / argArrStep);
                 x = argArrLimA + StepIndex * argArrStep;
             }
-            
+
+            int stepIndSerial = StepIndex; // for function items with forceSerialCalc = true
+
             for (int i = 0; i < funcItems.Length; i++)
             {
-                if (funcItems[i] != null && funcItems[i].GetFunctionValue(ref e.FunctionsYvalues[i], StepIndex, SegmentIndex))
+                if (funcItems[i] != null)
                 {
-                    e.MarkersVisibility[i] = Visibility.Visible;
+                    if (funcItems[i].forceSerialCalc)
+                    {
+                        if (funcItems[i].GetFunctionValueSerial(ref e.FunctionsYvalues[i], stepIndSerial)) e.MarkersVisibility[i] = Visibility.Visible;
+                    }
+                    else
+                    {
+                        if (funcItems[i].GetFunctionValue(ref e.FunctionsYvalues[i], StepIndex, SegmentIndex)) e.MarkersVisibility[i] = Visibility.Visible;
+                    }
                 }
                 else e.MarkersVisibility[i] = Visibility.Collapsed;
             }
@@ -1140,6 +1149,15 @@ namespace zxCalculator
 
                 MessageBox.Show(segData.ExceptionsStrig, mbTitle, MessageBoxButton.OK, MessageBoxImage.Exclamation);
             }
+        }
+
+        public bool GetFunctionValueSerial(ref double Fvalue, int stepNum)
+        {
+            if (ArrInProgress || !PlottingActive || !AutoUpdate || SegmentsData == null) return false; // >>>>>>>>> >>>>>>>>>
+
+            Fvalue = outputSegments[0][stepNum];
+
+            return true;
         }
 
         public bool GetFunctionValue(ref double Fvalue, int stepNum, int segmInd = -1)
