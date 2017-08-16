@@ -1153,7 +1153,7 @@ namespace zxCalculator
 
         public bool GetFunctionValueSerial(ref double Fvalue, int stepNum)
         {
-            if (ArrInProgress || !PlottingActive || !AutoUpdate || SegmentsData == null) return false; // >>>>>>>>> >>>>>>>>>
+            if (ArrInProgress || !PlottingActive || !AutoUpdate || SegmentsData == null) return false; // >>>>>>> >>>>>>>>
 
             Fvalue = outputSegments[0][stepNum];
 
