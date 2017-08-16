@@ -274,7 +274,7 @@ namespace zxCalculator
         string[] ArgUnitsNames { get; }
 
         /// <summary>
-        /// If true then array of an argument values will not be divided into segments for parallel calculations
+        /// If true then array of argument values will not be divided into segments and will be calculated in one thread
         /// </summary>
         bool ForceSerialCalc { get; }
 
