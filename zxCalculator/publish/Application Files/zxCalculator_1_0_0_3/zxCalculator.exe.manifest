@@ -67,14 +67,14 @@
     </dependentAssembly>
   </dependency>
   <dependency>
-    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="zxCalculator.exe" size="321024">
+    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="zxCalculator.exe" size="306176">
       <assemblyIdentity name="zxCalculator" version="1.0.1.0" language="neutral" processorArchitecture="msil" />
       <hash>
         <dsig:Transforms>
           <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
         </dsig:Transforms>
         <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-        <dsig:DigestValue>Z3NJyfRfarx+GXy6XLOZxadfp5pRus5GdMtnrO5Qzvg=</dsig:DigestValue>
+        <dsig:DigestValue>PoDD5DHBDCJRACQyBU/z/qNAtXIV9TOMkWar5BNIQ6Q=</dsig:DigestValue>
       </hash>
     </dependentAssembly>
   </dependency>

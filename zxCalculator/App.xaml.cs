@@ -462,7 +462,7 @@ namespace zxCalculator
                     break;
 
                 case CoordinateGrid.GraphEditorSettings.IsActive:
-                    bool iniNewCalc = e.IsActive && !funcItems[e.EditedIndex].PlottingActive;
+                    bool iniNewCalc = e.IsActive && !funcItems[e.EditedIndex].PlottingActive && funcItems[e.EditedIndex].AutoUpdate;
 
                     funcItems[e.EditedIndex].PlottingActive = e.IsActive;
 
@@ -585,6 +585,8 @@ namespace zxCalculator
 
         private void LostKeyFocus_inputTextBox(object sender, RoutedEventArgs e) // handler for argument value
         {
+            if ((e.OriginalSource as TextBox) == null) return; // >>>>>>>>> >>>>>>>>>
+
             double val, incr;
 
             InputParser(inputTextBox.Text, out val, out incr);
@@ -599,6 +601,8 @@ namespace zxCalculator
 
         private void KeyDown_inputTextBox(object sender, KeyEventArgs e) // handler for an argument value
         {
+            if ((e.OriginalSource as TextBox) == null) return; // >>>>>>>>> >>>>>>>>>
+
             if (e.Key == Key.Enter)
             {
                 double val, incr;
@@ -945,7 +949,7 @@ namespace zxCalculator
         private SWShapes.Path sinwavePath;
         private double sinwaveThickness = 2;
         private Color tmpColor;
-        private bool useTmpColor;
+        private bool useTmpColor = false;
 
         public double SinwaveThickness { get { return sinwaveThickness; } }
         public Color SinwaveColor
@@ -977,6 +981,7 @@ namespace zxCalculator
                 {
                     useTmpColor = false;
 
+                    tmpColor.A = 255;
                     (sinwavePath.Stroke as SolidColorBrush).Color = tmpColor;
 
                     strokeBtt.Background = null;
@@ -1156,6 +1161,8 @@ namespace zxCalculator
             if (ArrInProgress || !PlottingActive || !AutoUpdate || SegmentsData == null) return false; // >>>>>>>>> >>>>>>>>>>
 
             Fvalue = outputSegments[0][stepNum];
+
+            outputTextBox.Text = Fvalue.ToString();
 
             return true;
         }

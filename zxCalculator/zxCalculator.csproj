@@ -27,6 +27,8 @@
     <MapFileExtensions>true</MapFileExtensions>
     <InstallUrl>https://raw.githubusercontent.com/zubetto/zxCalculator/master/zxCalculator/publish/</InstallUrl>
     <UpdateUrl>https://raw.githubusercontent.com/zubetto/zxCalculator/master/zxCalculator/publish/</UpdateUrl>
+    <ProductName>zxCalculator</ProductName>
+    <PublisherName>Zubetto</PublisherName>
     <AutorunEnabled>true</AutorunEnabled>
     <ApplicationRevision>3</ApplicationRevision>
     <ApplicationVersion>1.0.0.3</ApplicationVersion>
@@ -52,7 +54,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>true</Prefer32Bit>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
     <ManifestCertificateThumbprint>F8F4984BB13C54A0BCF5B69F13FA09C840751B48</ManifestCertificateThumbprint>
