@@ -509,10 +509,12 @@ namespace zxCalculator
                     if (funcItems[i].forceSerialCalc)
                     {
                         if (funcItems[i].GetFunctionValueSerial(ref e.FunctionsYvalues[i], stepIndSerial)) e.MarkersVisibility[i] = Visibility.Visible;
+                        else e.MarkersVisibility[i] = Visibility.Collapsed;
                     }
                     else
                     {
                         if (funcItems[i].GetFunctionValue(ref e.FunctionsYvalues[i], StepIndex, SegmentIndex)) e.MarkersVisibility[i] = Visibility.Visible;
+                        else e.MarkersVisibility[i] = Visibility.Collapsed;
                     }
                 }
                 else e.MarkersVisibility[i] = Visibility.Collapsed;
