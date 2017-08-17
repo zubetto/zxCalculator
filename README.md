@@ -8,7 +8,9 @@ The class *CoordinateGrid* represents coordinate grid stuff (grid lines, scale v
 The class *PointsSampler* implements a filtering method for efficient representation of graphs consisting of a large number of points.  
   
 Next steps are implementation of a calculation interruption (pausing and canceling) and more attractive interface;  
-  
+
+[setup.exe for windows](../blob/master/zxCalculator/publish/setup.exe)  
+
 ![alt text](/zxCalcGUI.png "GUI")
 ![alt text](/zxCalcGUI_02.png "GUI")
 ![alt text](/CoordinateGrid_001.png "CoordinateGrid output example")
