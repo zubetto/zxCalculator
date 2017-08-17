@@ -1630,8 +1630,14 @@ namespace zxCalculator
                     {
                         pV = GraphMatrix.M22 * MarkersYvalues[i] + GraphMatrix.OffsetY;
 
+                        pV -= 0.5 * marker.ActualHeight;
+
+                        if (double.IsNegativeInfinity(pV)) pV = double.MinValue;
+                        else if (double.IsPositiveInfinity(pV)) pV = double.MaxValue;
+                        else if (double.IsNaN(pV)) pV = -100;
+
                         Canvas.SetLeft(marker, pU - 0.5 * marker.ActualWidth);
-                        Canvas.SetTop(marker, pV - 0.5 * marker.ActualHeight);
+                        Canvas.SetTop(marker, pV);
                     }
                     
                 }
@@ -1690,8 +1696,14 @@ namespace zxCalculator
                     {
                         pV = GraphMatrix.M22 * MarkersYvalues[i] + GraphMatrix.OffsetY;
 
+                        pV -= 0.5 * marker.ActualHeight;
+
+                        if (double.IsNegativeInfinity(pV)) pV = double.MinValue;
+                        else if (double.IsPositiveInfinity(pV)) pV = double.MaxValue;
+                        else if (double.IsNaN(pV)) pV = -100;
+
                         Canvas.SetLeft(marker, pU - 0.5 * marker.ActualWidth);
-                        Canvas.SetTop(marker, pV - 0.5 * marker.ActualHeight);
+                        Canvas.SetTop(marker, pV);
                     }
 
                 }
