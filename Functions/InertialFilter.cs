@@ -110,7 +110,6 @@ namespace zxCalculator
                 output[0] = outS;
 
                 Analyze.SetMinMax(outS);
-                Analyze.SetPoint(0, args[argInd], outS);
 
                 // i = 1
                 args[argInd] = argArr[1];
@@ -122,7 +121,6 @@ namespace zxCalculator
                 outV = inV0;
 
                 Analyze.SetMinMax(outS);
-                Analyze.SetPoint(1, args[argInd], outS);
 
                 for (int i = 2; i < Num; i++)
                 {
@@ -135,7 +133,6 @@ namespace zxCalculator
                     output[i] = outS;
 
                     Analyze.SetMinMax(outS);
-                    Analyze.SetPoint(i, args[argInd], outS);
                 }
             }
             else if (!(double.IsNaN(limA) || double.IsNaN(limB) || double.IsNaN(step))) // using the given range limits
@@ -157,7 +154,6 @@ namespace zxCalculator
                 output[0] = outS;
 
                 Analyze.SetMinMax(outS);
-                Analyze.SetPoint(0, currX, outS);
 
                 // i = 1
                 currX += step;
@@ -170,7 +166,6 @@ namespace zxCalculator
                 outV = inV0;
 
                 Analyze.SetMinMax(outS);
-                Analyze.SetPoint(1, currX, outS);
 
                 currX += step;
                 args[argInd] = currX;
@@ -184,7 +179,6 @@ namespace zxCalculator
                     output[i] = outS;
 
                     Analyze.SetMinMax(outS);
-                    Analyze.SetPoint(i, currX, outS);
 
                     currX += step;
                     args[argInd] = currX;
@@ -199,7 +193,6 @@ namespace zxCalculator
                 output[stepNum] = outS;
 
                 Analyze.SetMinMax(outS);
-                Analyze.SetPoint(stepNum, limB, outS);
             }
             else
             {
@@ -322,7 +315,6 @@ namespace zxCalculator
                     output[i] = outS;
 
                     Analyze.SetMinMax(outS);
-                    Analyze.SetPoint(i, args[argInd], outS);
                 }
             }
             else if (!(double.IsNaN(limA) || double.IsNaN(limB) || double.IsNaN(step))) // using the given range limits
@@ -343,7 +335,6 @@ namespace zxCalculator
                     output[i] = outS;
 
                     Analyze.SetMinMax(outS);
-                    Analyze.SetPoint(i, currX, outS);
 
                     currX += step;
                     args[argInd] = currX;
@@ -357,7 +348,6 @@ namespace zxCalculator
                 output[stepNum] = outS;
 
                 Analyze.SetMinMax(outS);
-                Analyze.SetPoint(stepNum, limB, outS);
             }
             else
             {
@@ -547,7 +537,7 @@ namespace zxCalculator
                     output[j] = outAcc;
 
                     Analyze.SetMinMax(outAcc);
-                    Analyze.SetPoint(j++, Xj, outAcc);
+                    j++;
 
                     currX += step;
                     args[argInd] = currX;
@@ -564,16 +554,15 @@ namespace zxCalculator
                 output[j] = outAcc;
 
                 Analyze.SetMinMax(outAcc);
-                Analyze.SetPoint(j++, Xj, outAcc);
+                j++;
 
                 // Filling in the remaining elements of the output array
                 Xj += step;
 
                 output[j] = outAcc;
-                Analyze.SetPoint(j++, Xj, outAcc); // i-1 
+                j++; // i-1 
 
                 output[j] = outAcc;
-                Analyze.SetPoint(stepNum, limB, outAcc); // i
             }
             else
             {

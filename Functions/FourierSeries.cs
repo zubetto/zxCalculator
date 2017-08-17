@@ -56,7 +56,6 @@ namespace FourierSeries
                     output[i] = currY;
 
                     Analyze.SetMinMax(currY);
-                    Analyze.SetPoint(i, currX, currY);
 
                     currX += step;
                     args[argInd] = currX;
@@ -68,7 +67,6 @@ namespace FourierSeries
                 output[stepNum] = currY;
 
                 Analyze.SetMinMax(currY);
-                Analyze.SetPoint(stepNum, limB, currY);
             }
             else
             {
@@ -159,7 +157,6 @@ namespace FourierSeries
                     output[i] = currY;
 
                     Analyze.SetMinMax(currY);
-                    Analyze.SetPoint(i, currX, currY);
 
                     currX += step;
                     args[argInd] = currX;
@@ -171,7 +168,6 @@ namespace FourierSeries
                 output[stepNum] = currY;
 
                 Analyze.SetMinMax(currY);
-                Analyze.SetPoint(stepNum, limB, currY);
             }
             else
             {
