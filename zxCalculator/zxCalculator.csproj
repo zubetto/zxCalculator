@@ -65,7 +65,7 @@
     <SignManifests>false</SignManifests>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>zxCalcicon04.ico</ApplicationIcon>
+    <ApplicationIcon>zxCalciconBraces.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="ColorTools">
@@ -99,7 +99,7 @@
       <SubType>Designer</SubType>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Resource Include="zxCalcicon04.ico" />
+    <Resource Include="zxCalciconBraces.ico" />
     <Page Include="EditStrokeWin.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
