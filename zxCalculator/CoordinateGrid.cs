@@ -92,116 +92,201 @@ namespace zxCalculator
 
         public Point[] Filter()
         {
-            if (!(inputIsSetted && outputIsSetted)) return null; // >>>>>>> To prevent race condition >>>>>>>
-
-            Matrix Mx = MxTransformXYtoUV.Matrix;
-
-            // u = x * ratioXtoU + offsetU;     
-            // v = y * ratioYtoV + offsetV; 
-            // x = (u - offsetU) / ratioXtoU;
-            // y = (v - offsetV) / ratioYtoV;
-            double viewLimA = -Mx.OffsetX / Mx.M11;
-            double viewLimB = (outputCanvas.ActualWidth - Mx.OffsetX) / Mx.M11;
-
-            // [0] - limA, [1] - limB, [2] - step
-            double XlimA = XRange[0];
-            double XlimB = XRange[1];
-            double Xstep = XRange[2];
-
-            PolyLineSegment plSegment = outputGeometry.Figures[0].Segments[0] as PolyLineSegment;
-
-            if (viewLimA >= XlimB || viewLimB <= XlimA) // Entire graph is out-of-sight
+            try
             {
-                plSegment.IsStroked = false;
-                return null; // >>>>> >>>>>
-            }
-            else // Searching for completed segments in the field of view
-            {
-                plSegment.IsStroked = true;
+                if (!(inputIsSetted && outputIsSetted)) return null; // >>>>>>> To prevent race condition >>>>>>>
 
-                int SegNum = inputYArr.Length;
-                int firstViewInd = -1;
-                int lastViewInd = -1;
+                Matrix Mx = MxTransformXYtoUV.Matrix;
 
-                // Searching for first completed segment in the field of view
-                for (int i = 0; i < SegNum; i++)
-                {
-                    if (inputInfo[i].IsComplete && inputInfo[i].SegmentLimB > viewLimA)
-                    {
-                        firstViewInd = i;
-                        break;
-                    }
-                }
+                // u = x * ratioXtoU + offsetU;     
+                // v = y * ratioYtoV + offsetV; 
+                // x = (u - offsetU) / ratioXtoU;
+                // y = (v - offsetV) / ratioYtoV;
+                double viewLimA = -Mx.OffsetX / Mx.M11;
+                double viewLimB = (outputCanvas.ActualWidth - Mx.OffsetX) / Mx.M11;
 
-                if (firstViewInd < 0) // Neither segment is completed
+                // [0] - limA, [1] - limB, [2] - step
+                double XlimA = XRange[0];
+                double XlimB = XRange[1];
+                double Xstep = XRange[2];
+
+                PolyLineSegment plSegment = outputGeometry.Figures[0].Segments[0] as PolyLineSegment;
+
+                if (viewLimA >= XlimB || viewLimB <= XlimA) // Entire graph is out-of-sight
                 {
                     plSegment.IsStroked = false;
                     return null; // >>>>> >>>>>
                 }
-
-                // Searching for last completed segment in the field of view 
-                for (int i = SegNum - 1; i >= 0; i--)
+                else // Searching for completed segments in the field of view
                 {
-                    if (inputInfo[i].IsComplete && inputInfo[i].SegmentLimA < viewLimB)
+                    plSegment.IsStroked = true;
+
+                    int SegNum = inputYArr.Length;
+                    int firstViewInd = -1;
+                    int lastViewInd = -1;
+
+                    // Searching for first completed segment in the field of view
+                    for (int i = 0; i < SegNum; i++)
                     {
-                        lastViewInd = i;
-                        break;
+                        if (inputInfo[i].IsComplete && inputInfo[i].SegmentLimB > viewLimA)
+                        {
+                            firstViewInd = i;
+                            break;
+                        }
                     }
-                }
 
-                if (lastViewInd < firstViewInd) // All completed segments are out-of-sight
-                {
-                    plSegment.IsStroked = false;
-                    return null; // >>>>> >>>>>
-                }
-
-                // Defining number of all points in the field of view
-                double dA = viewLimA - inputInfo[firstViewInd].SegmentLimA;
-                double dB = inputInfo[lastViewInd].SegmentLimB - viewLimB;
-
-                int indA = 0;
-                int indB = inputInfo[lastViewInd].SegmentLength - 1;
-
-                if (dA > Xstep) indA = (int)Math.Floor(dA / Xstep);
-                if (dB > Xstep) indB -= (int)Math.Floor(dB / Xstep);
-
-                // Reducing the number of output points by using index increment
-                int incr = indB - indA + 1; // Is equal to ratio of number of all points in the field of view and the PointsMaxNum
-
-                // Adding length of each completed segment located between the first and the last
-                if (firstViewInd < lastViewInd)
-                {
-                    incr += inputInfo[firstViewInd].SegmentLength;
-
-                    for (int i = firstViewInd + 1; i < lastViewInd; i++)
+                    if (firstViewInd < 0) // Neither segment is completed
                     {
-                        if (inputInfo[i].IsComplete) incr += inputInfo[i].SegmentLength;
+                        plSegment.IsStroked = false;
+                        return null; // >>>>> >>>>>
                     }
-                }
 
-                //incr /= PointsMaxNum;
-                incr = (int)Math.Ceiling(1.0 * incr / PointsMaxNum);
-                if (incr == 0) incr = 1;
-
-                // Init variables for the segments iteration
-                int SegLen;
-                int ptInd = 0;
-                double Xspan = incr * Xstep;
-                double X = inputInfo[firstViewInd].SegmentLimA + indA * Xstep;
-                double[] Segment;
-                double ku = Mx.M11, kv = Mx.M22;
-                double du = Mx.OffsetX, dv = Mx.OffsetY;
-                double currValue, preValue = 0;
-
-                // *** Outputting of the points ***
-                for (int i = firstViewInd; i < lastViewInd; i++) // segments loop
-                {
-                    if (inputInfo[i].IsComplete)
+                    // Searching for last completed segment in the field of view 
+                    for (int i = SegNum - 1; i >= 0; i--)
                     {
-                        Segment = inputYArr[i];
-                        SegLen = Segment.Length;
+                        if (inputInfo[i].IsComplete && inputInfo[i].SegmentLimA < viewLimB)
+                        {
+                            lastViewInd = i;
+                            break;
+                        }
+                    }
 
-                        while (indA < SegLen) // points loop
+                    if (lastViewInd < firstViewInd) // All completed segments are out-of-sight
+                    {
+                        plSegment.IsStroked = false;
+                        return null; // >>>>> >>>>>
+                    }
+
+                    // Defining number of all points in the field of view
+                    double dA = viewLimA - inputInfo[firstViewInd].SegmentLimA;
+                    double dB = inputInfo[lastViewInd].SegmentLimB - viewLimB;
+
+                    int indA = 0;
+                    int indB = inputInfo[lastViewInd].SegmentLength - 1;
+
+                    if (dA > Xstep) indA = (int)Math.Floor(dA / Xstep);
+                    if (dB > Xstep) indB -= (int)Math.Floor(dB / Xstep);
+
+                    // Reducing the number of output points by using index increment
+                    int incr = indB - indA + 1; // Is equal to ratio of number of all points in the field of view and the PointsMaxNum
+
+                    // Adding length of each completed segment located between the first and the last
+                    if (firstViewInd < lastViewInd)
+                    {
+                        incr += inputInfo[firstViewInd].SegmentLength;
+
+                        for (int i = firstViewInd + 1; i < lastViewInd; i++)
+                        {
+                            if (inputInfo[i].IsComplete) incr += inputInfo[i].SegmentLength;
+                        }
+                    }
+
+                    //incr /= PointsMaxNum;
+                    incr = (int)Math.Ceiling(1.0 * incr / PointsMaxNum);
+                    if (incr == 0) incr = 1;
+
+                    // Init variables for the segments iteration
+                    int SegLen;
+                    int ptInd = 0;
+                    double Xspan = incr * Xstep;
+                    double X = inputInfo[firstViewInd].SegmentLimA + indA * Xstep;
+                    double[] Segment;
+                    double ku = Mx.M11, kv = Mx.M22;
+                    double du = Mx.OffsetX, dv = Mx.OffsetY;
+                    double currValue = 0, preValue = 0;
+
+                    // *** Outputting of the points ***
+                    for (int i = firstViewInd; i < lastViewInd; i++) // segments loop
+                    {
+                        if (inputInfo[i].IsComplete)
+                        {
+                            Segment = inputYArr[i];
+                            SegLen = Segment.Length;
+
+                            while (indA < SegLen) // points loop
+                            {
+                                currValue = kv * Segment[indA] + dv;
+
+                                if (double.IsNegativeInfinity(currValue)) currValue = double.MinValue;
+                                else if (double.IsPositiveInfinity(currValue)) currValue = double.MaxValue;
+
+                                if (double.IsNaN(currValue)) currValue = preValue;
+                                else preValue = currValue;
+
+                                outputPoints[ptInd].X = ku * X + du;
+                                outputPoints[ptInd].Y = currValue;
+
+                                if (++ptInd == PointsMaxNum)
+                                {
+                                    plSegment.Points = new PointCollection(outputPoints);
+                                    outputGeometry.Figures[0].StartPoint = outputPoints[0];
+                                    return outputPoints; // >>>>> COMPLETED >>>>>
+                                }
+
+                                indA += incr;
+                                X += Xspan;
+                            }
+
+                            indA -= SegLen;
+                        }
+                        else
+                        {
+                            indA = 0;
+                        }
+                    } // end of segments loop
+
+                    if (inputInfo[lastViewInd].IsComplete)
+                    {
+                        // The last segment loop with i = lastViewInd
+                        Segment = inputYArr[lastViewInd];
+                        SegLen = Segment.Length - 1; // last index
+
+                        while (indA < indB) // points loop
+                        {
+                            if (ptInd == PointsMaxNum)
+                            {
+                                plSegment.Points = new PointCollection(outputPoints);
+                                outputGeometry.Figures[0].StartPoint = outputPoints[0];
+                                return outputPoints; // >>>>> COMPLETED >>>>>
+                            }
+
+                            currValue = kv * Segment[indA] + dv;
+
+                            if (double.IsNegativeInfinity(currValue)) currValue = double.MinValue;
+                            else if (double.IsPositiveInfinity(currValue)) currValue = double.MaxValue;
+
+                            if (double.IsNaN(currValue)) currValue = preValue;
+                            else preValue = currValue;
+
+                            outputPoints[ptInd].X = ku * X + du;
+                            outputPoints[ptInd].Y = currValue;
+                            
+                            ptInd++;
+                            indA += incr;
+                            X += Xspan;
+                        }
+
+                        if (ptInd == PointsMaxNum)
+                        {
+                            plSegment.Points = new PointCollection(outputPoints);
+                            outputGeometry.Figures[0].StartPoint = outputPoints[0];
+                            return outputPoints; // >>>>> COMPLETED >>>>>
+                        }
+
+                        if (indA > SegLen)
+                        {
+                            currValue = kv * Segment[SegLen] + dv;
+
+                            if (double.IsNegativeInfinity(currValue)) currValue = double.MinValue;
+                            else if (double.IsPositiveInfinity(currValue)) currValue = double.MaxValue;
+
+                            if (double.IsNaN(currValue)) currValue = preValue;
+                            else preValue = currValue;
+
+                            outputPoints[ptInd].X = ku * XlimB + du;
+                            outputPoints[ptInd].Y = currValue;
+                        }
+                        else // indB < SegLen
                         {
                             currValue = kv * Segment[indA] + dv;
 
@@ -213,89 +298,29 @@ namespace zxCalculator
 
                             outputPoints[ptInd].X = ku * X + du;
                             outputPoints[ptInd].Y = currValue;
-
-                            ptInd++;
-                            indA += incr;
-                            X += Xspan;
                         }
-
-                        indA -= SegLen;
                     }
-                    else
+
+                    // Filling out remaining points
+                    X = outputPoints[ptInd].X;
+
+                    while (++ptInd < PointsMaxNum)
                     {
-                        indA = 0;
-                    }
-                } // end of segments loop
-
-                // The last segment loop with i = lastViewInd
-                Segment = inputYArr[lastViewInd];
-                SegLen = Segment.Length - 1; // last index
-
-                while (indA < indB) // points loop
-                {
-                    currValue = kv * Segment[indA] + dv;
-
-                    if (double.IsNegativeInfinity(currValue)) currValue = double.MinValue;
-                    else if (double.IsPositiveInfinity(currValue)) currValue = double.MaxValue;
-
-                    if (double.IsNaN(currValue)) currValue = preValue;
-                    else preValue = currValue;
-
-                    outputPoints[ptInd].X = ku * X + du;
-                    outputPoints[ptInd].Y = currValue;
-
-                    if (++ptInd == PointsMaxNum)
-                    {
-                        plSegment.Points = new PointCollection(outputPoints);
-                        outputGeometry.Figures[0].StartPoint = outputPoints[0];
-                        return outputPoints; // >>>>> COMPLETED >>>>>
+                        outputPoints[ptInd].X = X;
+                        outputPoints[ptInd].Y = currValue;
                     }
 
-                    indA += incr;
-                    X += Xspan;
+                    plSegment.Points = new PointCollection(outputPoints);
+                    outputGeometry.Figures[0].StartPoint = outputPoints[0];
                 }
 
-                if (indA > SegLen)
-                {
-                    currValue = kv * Segment[SegLen] + dv;
-
-                    if (double.IsNegativeInfinity(currValue)) currValue = double.MinValue;
-                    else if (double.IsPositiveInfinity(currValue)) currValue = double.MaxValue;
-
-                    if (double.IsNaN(currValue)) currValue = preValue;
-                    else preValue = currValue;
-
-                    outputPoints[ptInd].X = ku * XlimB + du;
-                    outputPoints[ptInd].Y = currValue;
-                }
-                else // indB < SegLen
-                {
-                    currValue = kv * Segment[indA] + dv;
-
-                    if (double.IsNegativeInfinity(currValue)) currValue = double.MinValue;
-                    else if (double.IsPositiveInfinity(currValue)) currValue = double.MaxValue;
-
-                    if (double.IsNaN(currValue)) currValue = preValue;
-                    else preValue = currValue;
-
-                    outputPoints[ptInd].X = ku * X + du;
-                    outputPoints[ptInd].Y = currValue;
-                }
-
-                // Filling out remaining points
-                X = outputPoints[ptInd].X;
-
-                while (++ptInd < PointsMaxNum)
-                {
-                    outputPoints[ptInd].X = X;
-                    outputPoints[ptInd].Y = currValue;
-                }
-
-                plSegment.Points = new PointCollection(outputPoints);
-                outputGeometry.Figures[0].StartPoint = outputPoints[0];
+                return outputPoints;
             }
-
-            return outputPoints;
+            catch (Exception e)
+            {
+                string err = e.ToString();
+                return null;
+            }
         }
 
         /// <summary>
