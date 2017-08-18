@@ -9,7 +9,7 @@ The class *PointsSampler* implements a filtering method for efficient representa
   
 Next steps are implementation of a calculation interruption (pausing and canceling) and more attractive interface;  
 
-[setup.exe for windows](../master/zxCalculator/publish/setup.exe)  
+[1.0.0-beta for windows](https://github.com/zubetto/zxCalculator/releases/tag/1.0.0-beta)  
 
 ![alt text](/zxCalcGUI.png "GUI")
 ![alt text](/zxCalcGUI_02.png "GUI")
