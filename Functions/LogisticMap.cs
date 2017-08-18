@@ -4,7 +4,7 @@ namespace zxCalculator
 {
     public class LogisticMap : ICalculate
     {
-        bool ICalculate.ForceSerialCalc { get { return false; } }
+        bool ICalculate.ForceSerialCalc { get { return true; } }
 
         string[] argLabels = new string[3] { "t", "r", "xo" };
         string[] argUnitsNames = new string[3] { "s", "", "" };
@@ -76,7 +76,7 @@ namespace zxCalculator
 
     public class LogisticMapDelta : ICalculate
     {
-        bool ICalculate.ForceSerialCalc { get { return false; } }
+        bool ICalculate.ForceSerialCalc { get { return true; } }
 
         string[] argLabels = new string[4] { "t", "r", "xo", "dx" };
         string[] argUnitsNames = new string[4] { "s", "", "", "" };
