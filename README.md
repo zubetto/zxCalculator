@@ -1,5 +1,7 @@
 # zxCalculator
-![alt text](https://raw.githubusercontent.com/zubetto/zxCalculator/master/zxCalciconBraces.png) 
+<p align="left">
+  <img src="https://raw.githubusercontent.com/zubetto/zxCalculator/master/zxCalciconBraces.png" width="128"/>
+</p> 
 
 WPF project of the extensible calculator, intended to perform calculations of custom functions, that can be dynamically added from DLLs and for plotting them on the interactive coordinate grid; Wrapper classes for the custom functions must implement ICalculate interface defined in the *zxcalc.dll* (therefore, projects with custom functions must reference the *zxcalc.dll*).  
   
