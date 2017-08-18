@@ -19,6 +19,3 @@ Next steps are implementation of a calculation interruption (pausing and canceli
   <img src="https://raw.githubusercontent.com/zubetto/zxCalculator/master/zxCalcGUI.png" width="1162" hieght="707"/>
   <img src="https://raw.githubusercontent.com/zubetto/zxCalculator/master/zxCalcGUI_02.png" width="1162" hieght="707"/>
 </p>
-<p align="left">
-  <img src="https://raw.githubusercontent.com/zubetto/zxCalculator/master/zxCalcGUI_02.png" width="1162" hieght="707"/>
-</p>
