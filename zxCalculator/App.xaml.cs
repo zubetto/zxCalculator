@@ -353,7 +353,7 @@ namespace zxCalculator
             {
                 if (increment) args[index] += Val;
                 else if (Math.Abs(Val - args[index]) > 1e-100) args[index] = Val;
-                else return; // >>>>> To prevent repeated calculation >>>>>
+                else return; // >>>>> To prevent redundant calculation >>>>>
 
                 bool arrRequired = index != argInd;
 
@@ -520,6 +520,7 @@ namespace zxCalculator
                 else e.MarkersVisibility[i] = Visibility.Collapsed;
             }
 
+            args[argInd] = x;
             argsItems[argInd].inputTextBox.Text = x.ToString();
             e.MarkerPointXY.X = x;
         }
@@ -728,30 +729,50 @@ namespace zxCalculator
 
                 if (txtBox != null)
                 {
+                    double buff;
+
                     switch (txtBox.Name)
                     {
                         case "SpinnerA":
+                            buff = AppStuff.ArgArrayLimA;
+
                             if (spinner.Name == "rebttIncrease") AppStuff.ArgArrayLimA += incSpinnerA;
                             else if (spinner.Name == "rebttDecrease") AppStuff.ArgArrayLimA -= incSpinnerA;
 
-                            txtBox.Text = AppStuff.ArgArrayLimA.ToString();
-                            AppStuff.RangeChanged();
+                            if (Math.Abs(AppStuff.ArgArrayLimA - buff) > 1e-100)
+                            {
+                                txtBox.Text = AppStuff.ArgArrayLimA.ToString();
+                                AppStuff.RangeChanged();
+                            }
+
                             break;
 
                         case "SpinnerB":
+                            buff = AppStuff.ArgArrayLimB;
+
                             if (spinner.Name == "rebttIncrease") AppStuff.ArgArrayLimB += incSpinnerB;
                             else if (spinner.Name == "rebttDecrease") AppStuff.ArgArrayLimB -= incSpinnerB;
 
-                            txtBox.Text = AppStuff.ArgArrayLimB.ToString();
-                            AppStuff.RangeChanged();
+                            if (Math.Abs(AppStuff.ArgArrayLimB - buff) > 1e-100)
+                            {
+                                txtBox.Text = AppStuff.ArgArrayLimB.ToString();
+                                AppStuff.RangeChanged();
+                            }
+
                             break;
 
                         case "SpinnerStep":
+                            buff = AppStuff.ArgArrayStep;
+
                             if (spinner.Name == "rebttIncrease") AppStuff.ArgArrayStep += incSpinnerStep;
                             else if (spinner.Name == "rebttDecrease") AppStuff.ArgArrayStep -= incSpinnerStep;
 
-                            txtBox.Text = AppStuff.ArgArrayStep.ToString();
-                            AppStuff.RangeChanged();
+                            if (Math.Abs(AppStuff.ArgArrayStep - buff) > 1e-100)
+                            {
+                                txtBox.Text = AppStuff.ArgArrayStep.ToString();
+                                AppStuff.RangeChanged();
+                            }
+
                             break;
                     }
                 }
