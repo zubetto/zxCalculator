@@ -2274,7 +2274,9 @@ namespace zxCalculator
 
         private void AddBounds(int index, Rect Bounds)
         {
-            if (Bounds.IsEmpty) return; // >>>>> nothing to add >>>>>
+            if (Bounds.IsEmpty || 
+                Bounds.Width <= double.MinValue || Bounds.Width >= double.MaxValue ||
+                Bounds.Height <= double.MinValue || Bounds.Height >= double.MaxValue) return; // >>>>> nothing to add >>>>>
 
             if (BoundsAdded == 0 || BoundsArr[index].IsEmpty)
             {
